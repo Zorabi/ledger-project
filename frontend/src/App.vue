@@ -1169,7 +1169,20 @@ onMounted(loadMe)
             <n-alert type="warning" :show-icon="false">{{ viewError }}</n-alert>
           </n-card>
           <section v-else-if="viewLoading" :key="`${activeView}-loading`" class="view-stack view-loading">
-            <n-spin size="medium" />
+            <n-card size="small" class="skeleton-card">
+              <n-skeleton text style="width: 34%" />
+              <n-skeleton text :repeat="2" />
+            </n-card>
+            <div class="skeleton-grid">
+              <n-card v-for="item in 4" :key="item" size="small" class="skeleton-card">
+                <n-skeleton text style="width: 52%" />
+                <n-skeleton text style="width: 34%" />
+              </n-card>
+            </div>
+            <n-card size="small" class="skeleton-card skeleton-main">
+              <n-skeleton text style="width: 28%" />
+              <n-skeleton text :repeat="5" />
+            </n-card>
           </section>
 
           <section v-else-if="activeView === 'dashboard'" key="dashboard-view" class="view-stack">
