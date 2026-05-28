@@ -40,12 +40,14 @@ type DatabaseConfig struct {
 }
 
 type PostgresConfig struct {
-	User     string
-	Password string
-	Host     string
-	Port     int
-	DBName   string
-	SSLMode  string `mapstructure:"ssl_mode"`
+	User        string
+	Password    string
+	Host        string
+	Port        int
+	DBName      string
+	SSLMode     string `mapstructure:"ssl_mode"`
+	AutoCreate  bool   `mapstructure:"auto_create"`
+	AutoMigrate bool   `mapstructure:"auto_migrate"`
 }
 
 type JWTConfig struct {
@@ -95,7 +97,9 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.1.0.1")
+	v.SetDefault("app.version", "1.2.0.0")
+	v.SetDefault("database.postgres.auto_create", true)
+	v.SetDefault("database.postgres.auto_migrate", true)
 	v.SetDefault("jwt.signing_method", "HS256")
 	v.SetDefault("jwt.access_token_hours", 2)
 	v.SetDefault("jwt.refresh_token_days", 30)
@@ -120,6 +124,8 @@ func LoadConfig() {
 		"database.postgres.port",
 		"database.postgres.dbname",
 		"database.postgres.ssl_mode",
+		"database.postgres.auto_create",
+		"database.postgres.auto_migrate",
 		"app.name",
 		"app.version",
 		"jwt.secret",

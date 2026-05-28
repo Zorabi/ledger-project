@@ -15,7 +15,9 @@ import (
 
 func ConnectDatabase() *gorm.DB {
 	cfg := config.AppConfig.Database.Postgres
-	ensureDatabase(cfg)
+	if cfg.AutoCreate {
+		ensureDatabase(cfg)
+	}
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai",
 		cfg.Host, cfg.User, cfg.Password, cfg.DBName, cfg.Port, cfg.SSLMode)
 
@@ -24,27 +26,31 @@ func ConnectDatabase() *gorm.DB {
 		panic(fmt.Sprintf("connect database: %s", err))
 	}
 
-	if err := db.AutoMigrate(
-		&models.Family{},
-		&models.User{},
-		&models.UserSession{},
-		&models.AuthThrottle{},
-		&models.DictionaryType{},
-		&models.DictionaryItem{},
-		&models.Contact{},
-		&models.GiftRecord{},
-		&models.Attachment{},
-		&models.BackupConfig{},
-		&models.BackupJob{},
-		&models.ImportJob{},
-		&models.ImportJobError{},
-		&models.AuditLog{},
-	); err != nil {
-		panic(fmt.Sprintf("migrate database: %s", err))
+	if cfg.AutoMigrate {
+		if err := db.AutoMigrate(
+			&models.Family{},
+			&models.User{},
+			&models.UserSession{},
+			&models.AuthThrottle{},
+			&models.DictionaryType{},
+			&models.DictionaryItem{},
+			&models.Contact{},
+			&models.GiftRecord{},
+			&models.Attachment{},
+			&models.BackupConfig{},
+			&models.BackupJob{},
+			&models.ImportJob{},
+			&models.ImportJobError{},
+			&models.AuditLog{},
+		); err != nil {
+			panic(fmt.Sprintf("migrate database: %s", err))
+		}
+		backfillFamilyAdmins(db)
+		slog.Info("database connected and migrated")
+		return db
 	}
-	backfillFamilyAdmins(db)
 
-	slog.Info("database connected and migrated")
+	slog.Info("database connected without auto migration")
 	return db
 }
 

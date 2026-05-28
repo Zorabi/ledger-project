@@ -7,7 +7,7 @@ server:
 
 app:
   name: "礼尚往来"
-  version: "1.1.0.1"
+  version: "1.2.0.0"
 
 database:
   postgres:
@@ -17,6 +17,8 @@ database:
     port: 5432
     dbname: "ledger"
     ssl_mode: "disable"
+    auto_create: true
+    auto_migrate: true
 
 jwt:
   secret: "balalaxiaomixian"

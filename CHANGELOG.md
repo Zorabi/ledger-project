@@ -2,6 +2,25 @@
 
 本项目遵循面向产品交付的变更记录格式，按功能域归档重要变更。
 
+## v1.2.0.0 - 2026-05-28
+
+### Added
+
+- 新增 `Makefile`，封装本地开发、测试、构建、Docker 启停、SQL 执行、数据库备份和恢复等辅助命令。
+- 新增 `README.md`，补充本地启动、Docker 部署、共享 PostgreSQL 实例部署、数据库升级和服务器迁移步骤。
+- 新增版本化 SQL 目录，按 `sql/<version>/001_ddl.sql` 和 `002_data.sql` 提供手动建表、预置数据和升级脚本。
+- 新增数据库手动迁移模式配置：`database.postgres.auto_create` 和 `database.postgres.auto_migrate`。
+
+### Changed
+
+- 生产共享数据库场景可关闭自动建库和自动迁移，由管理员按版本 SQL 手动完成 DDL 和 data 变更。
+- 更新应用展示版本为 `1.2.0.0`。
+
+### Documentation
+
+- 更新部署文档，明确推荐“共享 PostgreSQL 实例、不共享业务 database”的部署方式。
+- 补充新增表或字段、生产升级和服务器迁移时的数据库操作流程，明确生产环境不依赖 `Makefile`，以 `psql`、`pg_dump`、`pg_restore` 和 DBA 执行路径为主。
+
 ## v1.1.0.1 - 2026-05-28
 
 ### Changed

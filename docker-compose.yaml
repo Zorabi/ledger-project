@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -36,6 +34,8 @@ services:
       DATABASE_POSTGRES_PASSWORD: 123456
       DATABASE_POSTGRES_DBNAME: ledger
       DATABASE_POSTGRES_SSL_MODE: disable
+      DATABASE_POSTGRES_AUTO_CREATE: "true"
+      DATABASE_POSTGRES_AUTO_MIGRATE: "true"
 
   frontend:
     container_name: ledger-frontend

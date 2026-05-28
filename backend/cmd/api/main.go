@@ -27,7 +27,7 @@ import (
 )
 
 // @title 礼尚往来 API
-// @version 1.1.0.1
+// @version 1.2.0.0
 // @description 家庭租户礼尚往来记录系统后端接口。
 // @host localhost:8080
 // @BasePath /api/v1

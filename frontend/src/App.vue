@@ -22,7 +22,7 @@ import {
 import { createDiscreteApi, dateZhCN, NButton, NPopconfirm, NSpace, type DataTableColumns, type UploadFileInfo, zhCN } from 'naive-ui'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.1.0.1'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.0.0'
 
 type Role = 'super_admin' | 'family_admin' | 'member'
 type ViewKey =

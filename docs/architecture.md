@@ -296,6 +296,7 @@ ledger-project/
 - 应用版本号采用 `X.A.B.C` 四段式格式：`X` 表示重大或不兼容变更，`A` 表示功能模块新增，`B` 表示已有功能迭代，`C` 表示 bug 修复、文档修正、发布规则修正等兼容补丁。
 - 每次提交代码前必须根据本次提交的最高影响级别更新版本号，并同步后端配置默认值、运行配置、前端兜底展示版本、Swagger 信息和 `CHANGELOG.md` 对应版本段。
 - `CHANGELOG.md` 的每个版本段必须描述当前提交相对父提交的实际仓库差异，不能记录未体现在本次 diff 中的对话决策或计划。
+- 涉及数据库表结构、索引、字段或预置数据的版本，必须在 `sql/<version>/` 下提供 `001_ddl.sql` 和 `002_data.sql`。
 - 家庭、用户、字典、往来对象、往来流水、审计日志、备份、导入恢复均提供 REST API。
 - 列表接口返回 `{ total, list, page, page_size }`。
 - 家庭级接口必须从登录上下文推导租户；`super_admin` 代家庭操作时通过 `family_id` 查询参数指定目标家庭。
@@ -347,8 +348,19 @@ ledger-project/
 项目协作与发布约束：
 
 - 仓库内保留 `.codex/skills/project-release-discipline`，用于提交前检查文档、changelog、验证命令和中文提交信息。
-- 每次形成可感知版本变化时，在 `CHANGELOG.md` 新增独立日期版本段，不把后续版本内容混入首版实现记录。
+- 每次提交前按 `X.A.B.C` 规则更新应用版本，并在 `CHANGELOG.md` 新增独立版本段；每个版本段只记录当前提交相对父提交的实际仓库差异。
 - 提交信息使用中文描述，允许保留 `feat`、`fix`、`docs` 等 conventional commit 类型前缀。
+
+## 部署与数据库迁移
+
+数据库迁移模式：
+
+- 开发环境可启用 `database.postgres.auto_create=true` 和 `database.postgres.auto_migrate=true`，由后端启动时自动创建业务库并补齐表结构。
+- 生产或共享 PostgreSQL 实例建议关闭自动建库和自动迁移，由管理员先创建独立业务库，再按版本顺序执行 `sql/<version>/001_ddl.sql` 和 `002_data.sql`。
+- 推荐共享 PostgreSQL 实例但不共享业务 database；当前版本没有表名前缀或 schema 隔离配置，不建议与其他项目共用同一个 database。
+- 生产数据库不要求、也不默认支持开发机直连；SQL、备份和恢复以 `psql`、`pg_dump`、`pg_restore` 原生命令为主，应在应用服务器、堡垒机、CI/CD 内网任务、DBA 工作台或 SSH 隧道后的可达环境执行。
+- `Makefile` 是开发、测试、运维机或 CI 的便捷封装，不作为生产部署必需组件。
+- 每次生产升级前必须先备份数据库，再执行新版本 SQL，最后部署新版本应用。
 
 ## 定时任务
 
