@@ -293,7 +293,9 @@ ledger-project/
 - 统一响应结构为 `{ code, msg, data }`，错误响应同样返回明确 `msg`。
 - `POST /auth/login`、`POST /auth/refresh` 管理 Access Token 与 Refresh Token。
 - `GET /version` 返回应用名称和版本号，用于前端展示、问题排查和发布验收。
-- 应用版本号采用 `X.A.B.C` 四段式格式。每次提交代码前必须同步更新后端配置默认值、运行配置、前端兜底展示版本、Swagger 信息和 `CHANGELOG.md` 对应版本段。
+- 应用版本号采用 `X.A.B.C` 四段式格式：`X` 表示重大或不兼容变更，`A` 表示功能模块新增，`B` 表示已有功能迭代，`C` 表示 bug 修复、文档修正、发布规则修正等兼容补丁。
+- 每次提交代码前必须根据本次提交的最高影响级别更新版本号，并同步后端配置默认值、运行配置、前端兜底展示版本、Swagger 信息和 `CHANGELOG.md` 对应版本段。
+- `CHANGELOG.md` 的每个版本段必须描述当前提交相对父提交的实际仓库差异，不能记录未体现在本次 diff 中的对话决策或计划。
 - 家庭、用户、字典、往来对象、往来流水、审计日志、备份、导入恢复均提供 REST API。
 - 列表接口返回 `{ total, list, page, page_size }`。
 - 家庭级接口必须从登录上下文推导租户；`super_admin` 代家庭操作时通过 `family_id` 查询参数指定目标家庭。

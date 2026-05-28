@@ -95,7 +95,7 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.0.1.0")
+	v.SetDefault("app.version", "1.1.0.1")
 	v.SetDefault("jwt.signing_method", "HS256")
 	v.SetDefault("jwt.access_token_hours", 2)
 	v.SetDefault("jwt.refresh_token_days", 30)
