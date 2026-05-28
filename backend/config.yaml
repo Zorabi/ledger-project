@@ -7,7 +7,7 @@ server:
 
 app:
   name: "礼尚往来"
-  version: "1.2.0.1"
+  version: "1.2.0.2"
 
 database:
   postgres:

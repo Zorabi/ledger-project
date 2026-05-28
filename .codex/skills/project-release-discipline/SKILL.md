@@ -1,78 +1,87 @@
 ---
 name: project-release-discipline
-description: Project-specific release hygiene for this ledger project. Use when Codex is asked to commit code, prepare a delivery, update changelog/docs, change requirements or architecture, or modify user-facing behavior. Enforces Chinese commit messages, documentation synchronization, changelog updates, and pre-commit verification.
+description: 礼尚往来项目专用发布纪律。提交代码、准备交付、更新 changelog 或文档、调整需求/架构、修改用户可感知行为时使用；要求中文提交信息、同步文档、更新版本号和 changelog，并在提交前完成必要验证。
 ---
 
-# Project Release Discipline
+# 项目发布纪律
 
-## Workflow
+## 执行流程
 
-Use this workflow before committing or presenting a completed delivery in this repository.
+在本仓库提交代码或交付变更前，必须执行以下流程。
 
-1. Inspect the worktree with `git status --short`.
-   - If there are no changes, tell the user there is nothing to commit and stop.
-   - If there are changes, review the actual diff before deciding the version and changelog content.
-2. Read the latest version from the top version section in root `CHANGELOG.md`.
-3. Decide the next version from the highest-impact change in the current diff:
-   - Major / incompatible change: increment `X`, reset `A.B.C` to `0.0.0`.
-   - New functional module: increment `A`, reset `B.C` to `0.0`.
-   - Existing feature iteration or refactor: increment `B`, reset `C` to `0`.
-   - Bug fix, documentation, test, build/config, release-rule fix: increment `C`.
-4. Show the user the suggested next version and the reason for the increment, then wait for user confirmation before changing version files or committing.
-5. Update the relevant documentation after confirmation:
-   - `CHANGELOG.md` for every user-visible, API, data, UI, deployment, or workflow change.
-   - `docs/product-requirements.md` for changed product behavior, interaction rules, or user-facing constraints.
-   - `docs/architecture.md` for changed technical architecture, API contracts, persistence, responsive strategy, or frontend structure.
-   - `backend/docs/*` when backend API contracts change.
-   - `sql/<version>/001_ddl.sql` and `sql/<version>/002_data.sql` when database tables, indexes, fields, or preset data change.
-   - `README.md` when startup, deployment, database migration, backup, restore, or server migration behavior changes. Production database commands must not assume direct access from the developer machine; prefer native `psql`, `pg_dump`, and `pg_restore` examples, and document execution from a reachable host, bastion, CI/CD job, DBA console, or SSH tunnel when relevant. Do not make `Makefile` a production dependency.
-6. Update the application version for every code commit:
-   - Use the project version format `X.A.B.C` exactly, for example `1.1.0.2`.
-   - Interpret the segments as: `X` = major version for重大变更/不兼容变更, `A` = minor version for功能模块新增, `B` = iteration version for existing feature iteration, `C` = patch version for bug fixes, documentation corrections, release-rule fixes, and other small compatible changes.
-   - Bump the application version according to the confirmed version.
-   - Create a brand-new `CHANGELOG.md` version section for every commit. Do not append a new commit's changes to an existing version section, even when multiple commits happen on the same calendar day.
-   - Write each changelog version section as the repository diff between the current commit and its immediate parent commit. Do not record conversation decisions, intent negotiation, or broader work that is not present in that commit's diff.
-   - For an initial release commit that creates the product from an empty or effectively empty baseline, classify delivered capabilities as `Added`; do not use `Changed` or `Fixed` for features that did not exist before that commit.
-   - Place the newest version section at the top and use `## vX.A.B.C - YYYY-MM-DD`.
-   - Keep the product version synchronized across `backend/config.yaml`, `backend/internal/config/config.go`, `backend/cmd/api/main.go`, `backend/docs/*`, `frontend/src/App.vue`, and `CHANGELOG.md`.
-   - Keep frontend package-manager versions valid SemVer in `frontend/package.json` and `frontend/package-lock.json`; use `X.A.B` there when the product version is `X.A.B.C`.
-7. Run focused verification. Prefer the project’s existing commands:
-   - Frontend-only changes: `npm run build` in `frontend`.
-   - Backend/API changes: `go test ./...` in `backend`.
-   - Full-stack changes: run both.
-8. Stage intentionally and inspect the staged diff or `git status --short`.
-9. Commit with a concise Chinese commit message using the required format below.
+1. 检查工作区状态：
+   - 运行 `git status --short`。
+   - 如果没有变更，告知用户无需提交并停止。
+   - 如果存在变更，先查看实际 diff，再判断版本号和 changelog 内容。
+2. 读取根目录 `CHANGELOG.md` 顶部最新版本号。
+3. 根据本次 diff 中影响最大的变更决定下一个版本号：
+   - 重大变更或不兼容变更：递增 `X`，并将 `A.B.C` 重置为 `0.0.0`。
+   - 新功能模块：递增 `A`，并将 `B.C` 重置为 `0.0`。
+   - 既有功能迭代或重构：递增 `B`，并将 `C` 重置为 `0`。
+   - Bug 修复、文档、测试、构建配置或发布规则修正：递增 `C`。
+4. 向用户展示建议版本号和递增理由，并等待用户明确确认后，才能修改版本文件、更新 `CHANGELOG.md`、暂存或提交。
+   - 这是硬性门禁。
+   - “提交代码”“继续”“go ahead”等泛指指令不算版本确认。
+   - 用户必须明确确认建议版本，例如“确认 1.2.0.1”“按这个版本提交”，或直接提供目标版本号。
+   - 如果用户要求提交但没有确认版本号，应停在展示建议版本、递增理由和建议提交信息这一步。
+   - 只有当用户最新消息已经包含明确目标版本，或明确批准建议版本时，才可以跳过确认等待。
+5. 用户确认版本后，按变更内容同步相关文档：
+   - 用户可感知行为、API、数据、UI、部署或工作流变化：更新 `CHANGELOG.md`。
+   - 产品行为、交互规则或用户可见约束变化：更新 `docs/product-requirements.md`。
+   - 技术架构、接口契约、持久化、响应式策略或前端结构变化：更新 `docs/architecture.md`。
+   - 后端 API 契约变化：更新 `backend/docs/*`。
+   - 数据库表、索引、字段或预置数据变化：更新或新增 `sql/<version>/001_ddl.sql` 和 `sql/<version>/002_data.sql`。
+   - 启动、部署、数据库迁移、备份、恢复或服务器迁移流程变化：更新 `README.md`。
+   - 生产数据库命令不能假设开发机可直连；优先使用 `psql`、`pg_dump`、`pg_restore` 原生命令示例，并在需要时说明可从应用服务器、堡垒机、CI/CD、DBA 工作台或 SSH 隧道环境执行。不要把 `Makefile` 作为生产部署必需依赖。
+6. 每次代码提交都必须同步应用版本号：
+   - 项目版本号固定使用 `X.A.B.C` 四段式，例如 `1.1.0.2`。
+   - `X` 表示重大或不兼容变更，`A` 表示功能模块新增，`B` 表示既有功能迭代，`C` 表示 bug 修复、文档修正、发布规则修正等兼容补丁。
+   - 根据用户确认的版本号更新应用版本。
+   - 每次提交都必须在 `CHANGELOG.md` 新建一个版本段；即使同一天有多次提交，也不能把新提交内容追加到旧版本段。
+   - 每个 changelog 版本段只记录当前提交相对父提交的实际仓库差异；不要记录对话过程、意图协商或没有进入本次 diff 的计划。
+   - 首次发布提交如果是从空白或近似空白基线创建产品，交付能力应归类为 `Added`，不要把原本不存在的功能写成 `Changed` 或 `Fixed`。
+   - 最新版本段放在最上方，标题格式为 `## vX.A.B.C - YYYY-MM-DD`。
+   - 产品版本需要同步到 `backend/config.yaml`、`backend/internal/config/config.go`、`backend/cmd/api/main.go`、`backend/docs/*`、`frontend/src/App.vue` 和 `CHANGELOG.md`。
+   - 前端包管理版本必须保持合法 SemVer；当产品版本为 `X.A.B.C` 时，`frontend/package.json` 和 `frontend/package-lock.json` 使用 `X.A.B`。
+7. 运行必要验证，优先使用项目现有命令：
+   - 仅前端变更：在 `frontend` 目录运行 `npm run build`。
+   - 后端或 API 变更：在 `backend` 目录运行 `go test ./...`。
+   - 全栈变更：两者都运行。
+8. 有意图地暂存文件，并检查暂存结果：
+   - 使用 `git status --short` 查看状态。
+   - 必要时检查 staged diff，确保只提交本次相关变更。
+9. 使用规定格式提交中文信息。
 
-## Commit Message Rules
+## 提交信息规则
 
-- Commit message format: `{emoji} {type}({scope}): {description}`.
-- Use Chinese for `{description}`.
-- Emoji and type mapping:
-  - `✨ feat`: 新功能
-  - `🐛 fix`: Bug 修复
-  - `♻️ refactor`: 重构
-  - `📝 docs`: 文档
-  - `✅ test`: 测试
-  - `🔧 chore`: 配置/构建
-- Choose a concise scope such as `deploy`, `db`, `ui`, `auth`, `docs`, `release`, or `backend`.
-- Example: `✨ feat(deploy): 增加生产部署和数据库迁移说明`
-- If amending an existing commit, preserve the intent but translate the message into Chinese.
+- 提交信息格式：`{emoji} {type}({scope}): {description}`。
+- `{description}` 必须使用中文。
+- emoji 与 type 对照：
+  - `✨ feat`：新功能
+  - `🐛 fix`：Bug 修复
+  - `♻️ refactor`：重构
+  - `📝 docs`：文档
+  - `✅ test`：测试
+  - `🔧 chore`：配置或构建
+- `scope` 使用简短英文范围，例如 `deploy`、`db`、`ui`、`auth`、`docs`、`release`、`backend`、`build`。
+- 示例：`✨ feat(deploy): 增加生产部署和数据库迁移说明`。
+- 如果是修改已有提交信息，应保留原意，但转换为上述格式和中文描述。
 
-## Documentation Rules
+## 文档规则
 
-- Changelog entries should be professional and grouped by `Added`、`Changed`、`Fixed`、`Documentation` when possible.
-- Changelog top-level version headings must include the four-segment version and release date, for example `## v1.0.1.0 - 2026-05-28`.
-- Do not merge any later commit content into an older version section. Each commit maps to exactly one new changelog version section, even if the later commit only changes documentation or release discipline.
-- Changelog content must describe only concrete file/API/UI/data/documentation changes introduced by that commit relative to its parent commit.
-- Initial release sections should usually contain `Added` and optional `Documentation` only, because there is no prior shipped behavior to change or fix.
-- Product requirements should describe expected behavior, not implementation trivia.
-- Architecture docs should describe stable technical decisions, not one-off bug history.
-- Do not update backend Swagger docs for frontend-only style changes.
+- Changelog 内容应专业清晰，尽量按 `Added`、`Changed`、`Fixed`、`Documentation` 分组。
+- Changelog 顶级版本标题必须包含四段式版本号和发布日期，例如 `## v1.0.1.0 - 2026-05-28`。
+- 不要把后续提交内容合并进旧版本段；每个提交对应一个新的 changelog 版本段。
+- Changelog 只描述当前提交相对父提交实际引入的代码、接口、UI、数据或文档变化。
+- 首版发布段通常只包含 `Added` 和可选的 `Documentation`，因为它没有上一版已发布行为可供变更或修复。
+- 产品需求文档描述预期行为，不记录实现细节。
+- 架构文档描述稳定技术决策，不记录一次性 bug 历史。
+- 纯前端样式变更不需要更新后端 Swagger 文档。
 
-## Final Response
+## 最终回复
 
-When the task includes a commit, report:
+当任务包含提交时，最终回复需要说明：
 
-- Changed areas.
-- Verification commands and result.
-- Commit hash and Chinese commit message.
+- 主要变更范围。
+- 验证命令和结果。
+- 提交 hash 和中文提交信息。
