@@ -1,4 +1,4 @@
 interface:
-  display_name: "项目发布纪律"
-  short_description: "提交前同步文档、changelog，并使用中文提交信息。"
-  default_prompt: "提交代码前，检查并同步 CHANGELOG、产品/架构文档，使用中文 commit message。"
+  display_name: "release-project"
+  short_description: "提交前确认版本号和提交类型，并同步文档与 changelog。"
+  default_prompt: "提交代码前，检查当前 diff，给出建议版本号、递增理由、type、scope 和完整提交信息，等待确认后同步 CHANGELOG、相关文档和系统展示版本，再按规则提交。"

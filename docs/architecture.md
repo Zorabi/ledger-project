@@ -347,7 +347,7 @@ ledger-project/
 
 项目协作与发布约束：
 
-- 仓库内保留 `.codex/skills/project-release-discipline`，用于提交前检查文档、changelog、验证命令和中文提交信息。
+- 仓库内保留 `release-project` 项目 skill，位置为 `.codex/skills/project-release-discipline`，用于提交前确认版本号和提交类型、检查文档、同步 changelog、按变更范围运行验证并使用中文提交信息。
 - 每次提交前按 `X.A.B.C` 规则更新应用版本，并在 `CHANGELOG.md` 新增独立版本段；每个版本段只记录当前提交相对父提交的实际仓库差异。
 - 提交信息使用中文描述，允许保留 `feat`、`fix`、`docs` 等 conventional commit 类型前缀。
 

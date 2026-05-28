@@ -1,6 +1,6 @@
 ---
-name: project-release-discipline
-description: 礼尚往来项目专用发布纪律。提交代码、准备交付、更新 changelog 或文档、调整需求/架构、修改用户可感知行为时使用；要求中文提交信息、同步文档、更新版本号和 changelog，并在提交前完成必要验证。
+name: release-project
+description: 礼尚往来项目专用发布流程。提交代码、准备交付、更新 changelog 或文档、调整需求/架构、修改用户可感知行为时使用；要求先确认版本号和提交类型，再同步文档、更新版本号和 changelog，并按变更范围完成必要验证。
 ---
 
 # 项目发布纪律
