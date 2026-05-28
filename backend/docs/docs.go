@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.2.0.0"
+        "version": "1.2.0.1"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -4315,7 +4315,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.2.0.0",
+	Version:          "1.2.0.1",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

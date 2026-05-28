@@ -2,6 +2,18 @@
 
 本项目遵循面向产品交付的变更记录格式，按功能域归档重要变更。
 
+## v1.2.0.1 - 2026-05-28
+
+### Changed
+
+- 调整 `Makefile` 构建目标，新增 Linux、macOS、Windows 的 amd64/arm64 短命令，并保留高级自定义构建入口。
+- 统一发布产物输出目录：后端二进制输出到 `dist/backend/`，前端静态资源打包为 `dist/frontend/ledger-web.zip`。
+- 更新应用展示版本为 `1.2.0.1`。
+
+### Documentation
+
+- 更新 README 构建说明，明确跨平台构建命令、前端 zip 产物和 `dist/` 发布目录结构。
+
 ## v1.2.0.0 - 2026-05-28
 
 ### Added

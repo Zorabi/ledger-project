@@ -5,6 +5,7 @@
 .gocache/
 .gopath/
 backend/ledger-backend
+dist/
 
 # Frontend
 frontend/node_modules/

@@ -204,6 +204,14 @@ SQL 位于 `sql/<version>/`：
 ```bash
 make help
 make test
+make build
+make build-linux-amd64
+make build-linux-arm64
+make build-darwin-arm64
+make build-windows-amd64
+make build-windows-arm64
+make build-all
+make docker-build
 make docker-up
 make docker-down
 make docker-logs
@@ -211,3 +219,17 @@ make sql-apply VERSION=1.2.0.0
 make db-backup
 make db-restore BACKUP_FILE=backups/ledger.dump
 ```
+
+构建产物说明：
+
+- 所有发布产物统一输出到根目录 `dist/`。
+- 后端二进制输出到 `dist/backend/`，文件名包含系统和架构，例如 `ledger-api-linux-amd64`、`ledger-api-windows-amd64.exe`。
+- 前端静态资源先构建到 `frontend/dist/`，再打包为 `dist/frontend/ledger-web.zip`。
+- `make build`：构建当前平台后端二进制，并生成前端 zip 包。
+- `make build-linux-amd64` / `make build-linux-arm64`：构建 Linux 后端二进制。
+- `make build-darwin-amd64` / `make build-darwin-arm64`：构建 macOS 后端二进制。
+- `make build-windows-amd64` / `make build-windows-arm64`：构建 Windows 后端二进制。
+- `make build-all`：构建 Linux amd64/arm64、macOS amd64/arm64、Windows amd64/arm64 后端二进制，并生成前端 zip 包。
+- `make backend-build GOOS=linux GOARCH=amd64`：高级自定义入口，按任意 Go 支持的平台构建。
+- `make docker-build`：分别构建前后端 Docker 镜像。
+- `make clean`：清理根目录 `dist/` 产物。
