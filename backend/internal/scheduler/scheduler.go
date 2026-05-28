@@ -48,11 +48,16 @@ func (s *Scheduler) loop(ctx context.Context, interval time.Duration) {
 }
 
 func (s *Scheduler) CleanupSessions() error {
-	cutoff := time.Now().AddDate(0, 0, -7)
-	return s.db.Exec(
+	now := time.Now()
+	sessionCutoff := now.AddDate(0, 0, -7)
+	if err := s.db.Exec(
 		"DELETE FROM user_sessions WHERE expires_at < ? OR (revoked_at IS NOT NULL AND revoked_at < ?)",
-		time.Now(), cutoff,
-	).Error
+		now, sessionCutoff,
+	).Error; err != nil {
+		return err
+	}
+	throttleCutoff := now.AddDate(0, 0, -config.AppConfig.Security.LoginCleanupAfterDays)
+	return s.db.Where("updated_at < ?", throttleCutoff).Delete(&models.AuthThrottle{}).Error
 }
 
 func (s *Scheduler) RunDueBackups() error {

@@ -5,6 +5,9 @@ server:
     default_page_num: 1
     max_page_size: 100
 
+app:
+  name: "礼尚往来"
+  version: "1.0.1.0"
 
 database:
   postgres:
@@ -21,6 +24,12 @@ jwt:
   access_token_hours: 2
   refresh_token_days: 30
   issuer: "dongx"
+
+security:
+  login_max_attempts: 5
+  login_window_minutes: 15
+  login_lock_minutes: 30
+  login_cleanup_after_days: 7
 
 bootstrap:
   super_admin_username: "admin"

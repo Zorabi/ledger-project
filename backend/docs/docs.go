@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.0"
+        "version": "1.0.1.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -52,6 +52,71 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "status": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/version": {
+            "get": {
+                "tags": [
+                    "系统"
+                ],
+                "summary": "系统版本",
+                "description": "返回当前应用名称和版本号",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "version": {
                                             "type": "string"
                                         }
                                     }
@@ -146,6 +211,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "登录失败次数过多，临时封禁",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -4239,11 +4310,12 @@ const docTemplate = `{
             }
         }
     }
-}`
+}
+`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1.0.1.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

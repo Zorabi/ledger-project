@@ -22,6 +22,7 @@ import {
 import { createDiscreteApi, dateZhCN, NButton, NPopconfirm, NSpace, type DataTableColumns, type UploadFileInfo, zhCN } from 'naive-ui'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.1.0'
 
 type Role = 'super_admin' | 'family_admin' | 'member'
 type ViewKey =
@@ -65,11 +66,13 @@ const loading = ref(false)
 const viewLoading = ref(false)
 const viewError = ref('')
 const authReady = ref(false)
+const appVersion = ref(FALLBACK_VERSION)
 const keyword = ref('')
 const selectedFamilyId = ref<number | null>(null)
 const loadedViews = reactive<Record<string, boolean>>({})
 const showFamilyModal = ref(false)
 const showUserModal = ref(false)
+const showResetPasswordModal = ref(false)
 const showContactModal = ref(false)
 const showRecordModal = ref(false)
 const showDictModal = ref(false)
@@ -78,6 +81,7 @@ const showBackupModal = ref(false)
 const showImportModal = ref(false)
 const editingFamilyId = ref<number | null>(null)
 const editingUserId = ref<number | null>(null)
+const resettingUser = ref<any | null>(null)
 const editingContactId = ref<number | null>(null)
 const editingRecordId = ref<number | null>(null)
 const editingDictId = ref<number | null>(null)
@@ -87,6 +91,7 @@ const loginForm = reactive({ username: 'admin', password: 'ChangeMe123!' })
 const passwordForm = reactive({ old_password: '', new_password: '' })
 const familyForm = reactive({ name: '', contact_name: '', contact_email: '', remark: '', admin_mode: 'existing', admin_user_id: null as number | null, admin_username: '', admin_display_name: '', admin_email: '', admin_password: '' })
 const userForm = reactive({ username: '', display_name: '', email: '', password: '', role: 'member', family_id: null as number | null })
+const resetPasswordForm = reactive({ password: '' })
 const contactForm = reactive({ name: '', contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
 const recordForm = reactive({ contact_id: null as number | null, occasion_type: '', direction: 'in', amount_yuan: 200, gift_description: '', occurred_on: new Date().toISOString().slice(0, 10), handled_by: '', reciprocity_status: 'pending', related_record_id: null as number | null, remark: '' })
 const dictForm = reactive({ type_id: null as number | null, label: '', value: '', sort_order: 0, enabled: true })
@@ -204,7 +209,7 @@ async function runAction(action: () => Promise<void>) {
   }
 }
 
-function generatePassword(target: 'user' | 'family_admin') {
+function generatePassword(target: 'user' | 'family_admin' | 'reset_user') {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   const lower = 'abcdefghijkmnopqrstuvwxyz'
   const digits = '23456789'
@@ -219,12 +224,13 @@ function generatePassword(target: 'user' | 'family_admin') {
   }
   const password = chars.join('')
   if (target === 'user') userForm.password = password
+  else if (target === 'reset_user') resetPasswordForm.password = password
   else familyForm.admin_password = password
   message.success('已生成强密码')
 }
 
-async function copyGeneratedPassword(target: 'user' | 'family_admin') {
-  const password = target === 'user' ? userForm.password : familyForm.admin_password
+async function copyGeneratedPassword(target: 'user' | 'family_admin' | 'reset_user') {
+  const password = target === 'user' ? userForm.password : target === 'reset_user' ? resetPasswordForm.password : familyForm.admin_password
   if (!password) {
     message.warning('请先生成或填写密码')
     return
@@ -259,6 +265,15 @@ async function login() {
     message.error(error.message)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadVersion() {
+  try {
+    const data = await api<any>('/version')
+    appVersion.value = data.version || FALLBACK_VERSION
+  } catch {
+    appVersion.value = FALLBACK_VERSION
   }
 }
 
@@ -779,6 +794,26 @@ async function updateUserStatus(row: any) {
   await loadUsers()
 }
 
+function openResetPassword(row: any) {
+  resettingUser.value = row
+  resetPasswordForm.password = ''
+  showResetPasswordModal.value = true
+}
+
+async function resetUserPassword() {
+  if (!resettingUser.value?.id) return
+  if (!resetPasswordForm.password) {
+    message.warning('请填写或生成新密码')
+    return
+  }
+  await api(`/users/${resettingUser.value.id}/reset-password`, { method: 'POST', body: JSON.stringify({ password: resetPasswordForm.password }) })
+  message.success('密码已重置，用户下次登录需修改密码')
+  showResetPasswordModal.value = false
+  resettingUser.value = null
+  resetPasswordForm.password = ''
+  await loadUsers()
+}
+
 const money = (cents?: number) => `¥${((cents || 0) / 100).toFixed(2)}`
 const directionText = (value: string) => value === 'in' ? '收礼' : '送礼'
 const reciprocityRoleText = (direction: string) => direction === 'in' ? '我方回礼' : '对方回礼'
@@ -799,10 +834,12 @@ const statusText = (value: string | boolean) => {
 const actionText = (value: string) => ({
   login_success: '登录成功',
   login_failed: '登录失败',
+  login_blocked: '登录封禁',
   logout: '退出登录',
   create_family: '创建家庭',
   create_user: '创建用户',
   change_password: '修改密码',
+  reset_password: '重置密码',
   create_contact: '新增对象',
   update_contact: '编辑对象',
   delete_contact: '删除对象',
@@ -817,7 +854,7 @@ const actionText = (value: string) => ({
   import_dry_run: '导入校验',
   execute_import: '执行导入'
 } as Record<string, string>)[value] || value || '-'
-const resourceText = (value: string) => ({ user: '用户', family: '家庭', contact: '往来对象', gift_record: '往来流水', dictionary_item: '字典项', dictionary_type: '字典类型', backup_config: '备份配置', backup_job: '备份任务', import_job: '导入批次', user_session: '用户会话' } as Record<string, string>)[value] || value || '-'
+const resourceText = (value: string) => ({ user: '用户', family: '家庭', contact: '往来对象', gift_record: '往来流水', dictionary_item: '字典项', dictionary_type: '字典类型', backup_config: '备份配置', backup_job: '备份任务', import_job: '导入批次', user_session: '用户会话', auth_throttle: '登录防护' } as Record<string, string>)[value] || value || '-'
 const boolText = (value: boolean) => value ? '是' : '否'
 function formatDateTime(value?: string) {
   if (!value) return '-'
@@ -974,6 +1011,7 @@ const userColumns: DataTableColumns<any> = [
     render: (row) =>
       h(NSpace, { size: 6 }, () => [
         h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => openEditUser(row) }, () => '编辑'),
+        h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => openResetPassword(row) }, () => '重置密码'),
         h(NButton, { size: 'small', quaternary: true, type: row.status === 'enabled' ? 'warning' : 'success', onClick: () => updateUserStatus(row) }, () => (row.status === 'enabled' ? '禁用' : '启用'))
       ])
   }
@@ -1067,7 +1105,11 @@ watch(activeView, () => scheduleChartRender())
 
 window.addEventListener('resize', () => chartInstances.forEach((chart) => chart.resize()))
 onBeforeUnmount(() => chartInstances.forEach((chart) => chart.dispose()))
-onMounted(loadMe)
+async function bootApp() {
+  await loadVersion()
+  await loadMe()
+}
+onMounted(bootApp)
 </script>
 
 <template>
@@ -1098,6 +1140,7 @@ onMounted(loadMe)
               登录
             </n-button>
           </n-form>
+          <p class="version-text">版本 {{ appVersion }}</p>
         </section>
       </main>
 
@@ -1124,7 +1167,7 @@ onMounted(loadMe)
         <aside class="sidebar">
           <div class="brand">
             <strong>礼尚往来</strong>
-            <span>{{ user?.display_name }} · {{ user?.role }}</span>
+            <span>{{ user?.display_name }} · {{ user?.role }} · v{{ appVersion }}</span>
           </div>
           <n-select
             v-if="isSuperAdmin"
@@ -1273,7 +1316,11 @@ onMounted(loadMe)
                   <div class="item-main"><strong>{{ item.display_name }}</strong><n-tag size="small">{{ statusText(item.role) }}</n-tag></div>
                   <p>{{ item.username }} · {{ item.email || '未填写邮箱' }}</p>
                   <small>{{ statusText(item.status) }} · 最后登录 {{ formatDateTime(item.last_login_at) }}</small>
-                  <div class="item-actions"><n-button size="small" secondary @click="openEditUser(item)">编辑</n-button><n-button size="small" secondary @click="runAction(() => updateUserStatus(item))">{{ item.status === 'enabled' ? '禁用' : '启用' }}</n-button></div>
+                  <div class="item-actions">
+                    <n-button size="small" secondary @click="openEditUser(item)">编辑</n-button>
+                    <n-button size="small" secondary type="primary" @click="openResetPassword(item)">重置密码</n-button>
+                    <n-button size="small" secondary @click="runAction(() => updateUserStatus(item))">{{ item.status === 'enabled' ? '禁用' : '启用' }}</n-button>
+                  </div>
                 </article>
               </div>
             </n-card>
@@ -1495,6 +1542,22 @@ onMounted(loadMe)
                 </n-input-group>
               </n-form-item>
               <n-button type="primary" block @click="runAction(createUser)">保存用户</n-button>
+            </n-form>
+          </n-modal>
+
+          <n-modal v-model:show="showResetPasswordModal" preset="card" :title="`重置密码${resettingUser ? ` · ${resettingUser.display_name}` : ''}`" class="form-modal">
+            <n-alert type="warning" :show-icon="false" class="modal-tip">
+              重置后用户下次登录必须修改密码，当前有效会话会被注销。
+            </n-alert>
+            <n-form label-placement="top">
+              <n-form-item label="新临时密码">
+                <n-input-group>
+                  <n-input v-model:value="resetPasswordForm.password" type="password" show-password-on="click" placeholder="至少 10 位，包含大小写字母、数字和特殊字符" />
+                  <n-button @click="generatePassword('reset_user')">生成</n-button>
+                  <n-button @click="copyGeneratedPassword('reset_user')">复制</n-button>
+                </n-input-group>
+              </n-form-item>
+              <n-button type="primary" block @click="runAction(resetUserPassword)">确认重置</n-button>
             </n-form>
           </n-modal>
 

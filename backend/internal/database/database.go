@@ -28,6 +28,7 @@ func ConnectDatabase() *gorm.DB {
 		&models.Family{},
 		&models.User{},
 		&models.UserSession{},
+		&models.AuthThrottle{},
 		&models.DictionaryType{},
 		&models.DictionaryItem{},
 		&models.Contact{},

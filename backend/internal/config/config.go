@@ -9,12 +9,19 @@ import (
 )
 
 type Config struct {
+	App        AppMetaConfig
 	Server     ServerConfig
 	Database   DatabaseConfig
 	JWT        JWTConfig
+	Security   SecurityConfig
 	Bootstrap  BootstrapConfig
 	SMTP       SMTPConfig
 	Encryption EncryptionConfig
+}
+
+type AppMetaConfig struct {
+	Name    string
+	Version string
 }
 
 type ServerConfig struct {
@@ -49,6 +56,13 @@ type JWTConfig struct {
 	Issuer           string
 }
 
+type SecurityConfig struct {
+	LoginMaxAttempts      int `mapstructure:"login_max_attempts"`
+	LoginWindowMinutes    int `mapstructure:"login_window_minutes"`
+	LoginLockMinutes      int `mapstructure:"login_lock_minutes"`
+	LoginCleanupAfterDays int `mapstructure:"login_cleanup_after_days"`
+}
+
 type BootstrapConfig struct {
 	SuperAdminUsername string `mapstructure:"super_admin_username"`
 	SuperAdminPassword string `mapstructure:"super_admin_password"`
@@ -80,10 +94,16 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_size", 10)
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
+	v.SetDefault("app.name", "礼尚往来")
+	v.SetDefault("app.version", "1.0.1.0")
 	v.SetDefault("jwt.signing_method", "HS256")
 	v.SetDefault("jwt.access_token_hours", 2)
 	v.SetDefault("jwt.refresh_token_days", 30)
 	v.SetDefault("jwt.issuer", "ledger")
+	v.SetDefault("security.login_max_attempts", 5)
+	v.SetDefault("security.login_window_minutes", 15)
+	v.SetDefault("security.login_lock_minutes", 30)
+	v.SetDefault("security.login_cleanup_after_days", 7)
 	v.SetDefault("bootstrap.super_admin_username", "admin")
 	v.SetDefault("bootstrap.super_admin_password", "ChangeMe123!")
 
@@ -100,9 +120,15 @@ func LoadConfig() {
 		"database.postgres.port",
 		"database.postgres.dbname",
 		"database.postgres.ssl_mode",
+		"app.name",
+		"app.version",
 		"jwt.secret",
 		"jwt.access_token_hours",
 		"jwt.refresh_token_days",
+		"security.login_max_attempts",
+		"security.login_window_minutes",
+		"security.login_lock_minutes",
+		"security.login_cleanup_after_days",
 		"bootstrap.super_admin_username",
 		"bootstrap.super_admin_password",
 		"smtp.host",
@@ -122,6 +148,18 @@ func LoadConfig() {
 	}
 	if AppConfig.JWT.Secret == "" {
 		panic("jwt.secret is required")
+	}
+	if AppConfig.Security.LoginMaxAttempts <= 0 {
+		AppConfig.Security.LoginMaxAttempts = 5
+	}
+	if AppConfig.Security.LoginWindowMinutes <= 0 {
+		AppConfig.Security.LoginWindowMinutes = 15
+	}
+	if AppConfig.Security.LoginLockMinutes <= 0 {
+		AppConfig.Security.LoginLockMinutes = 30
+	}
+	if AppConfig.Security.LoginCleanupAfterDays <= 0 {
+		AppConfig.Security.LoginCleanupAfterDays = 7
 	}
 }
 

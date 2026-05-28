@@ -77,6 +77,20 @@ ledger-project/
 
 清理规则：每天清理过期 session 和已撤销超过 7 天的 session。
 
+`auth_throttles`
+
+- `id`
+- `scope`：封禁维度，当前支持 `username` 和 `ip`
+- `key`：规范化后的账号或访问 IP
+- `failed_count`
+- `window_started_at`
+- `last_failed_at`
+- `locked_until`
+- `created_at`
+- `updated_at`
+
+登录防护规则：后端在登录失败时同时记录账号和访问 IP 维度；默认 15 分钟窗口内失败 5 次后临时封禁 30 分钟。管理员重置密码或登录成功后清理对应账号失败记录，后台定时清理过旧的失败/封禁记录。
+
 ### 数据字典
 
 `dictionary_types`
@@ -244,12 +258,19 @@ ledger-project/
 认证流程：
 
 1. 用户使用账号密码登录。
-2. 后端校验密码哈希。
-3. 如果用户被禁用，拒绝登录。
-4. 返回 `access_token` 和 `refresh_token`。
-5. 后端保存 refresh token 哈希到 `user_sessions`。
-6. 前端使用 access token 请求接口。
-7. access token 过期后使用 refresh token 换取新 token。
+2. 后端先检查账号和访问 IP 是否处于临时封禁期，封禁中返回 429 和可读错误信息。
+3. 后端校验密码哈希，失败时记录账号和访问 IP 维度失败次数。
+4. 如果用户被禁用，拒绝登录。
+5. 返回 `access_token` 和 `refresh_token`。
+6. 后端保存 refresh token 哈希到 `user_sessions`。
+7. 前端使用 access token 请求接口。
+8. access token 过期后使用 refresh token 换取新 token。
+
+密码找回策略：
+
+- 不提供用户主动发起的忘记密码、自助找回密码接口或页面。
+- 用户忘记密码时由管理员在线下核验后发起重置，重置后用户必须首次登录改密。
+- 重置密码会废止用户现有 session，并清理该账号的登录失败记录。
 
 授权规则：
 
@@ -271,6 +292,8 @@ ledger-project/
 
 - 统一响应结构为 `{ code, msg, data }`，错误响应同样返回明确 `msg`。
 - `POST /auth/login`、`POST /auth/refresh` 管理 Access Token 与 Refresh Token。
+- `GET /version` 返回应用名称和版本号，用于前端展示、问题排查和发布验收。
+- 应用版本号采用 `X.A.B.C` 四段式格式。每次提交代码前必须同步更新后端配置默认值、运行配置、前端兜底展示版本、Swagger 信息和 `CHANGELOG.md` 对应版本段。
 - 家庭、用户、字典、往来对象、往来流水、审计日志、备份、导入恢复均提供 REST API。
 - 列表接口返回 `{ total, list, page, page_size }`。
 - 家庭级接口必须从登录上下文推导租户；`super_admin` 代家庭操作时通过 `family_id` 查询参数指定目标家庭。
@@ -361,6 +384,8 @@ ledger-project/
 ## 安全约束
 
 - 密码不得明文保存。
+- 登录失败次数和临时封禁按账号、访问 IP 双维度控制，防止持续爆破。
+- 忘记密码只能由管理员重置，不允许用户主动发起自助找回。
 - Refresh Token 只保存哈希。
 - ZIP 密码用 `APP_ENCRYPTION_KEY` 加密保存。
 - 邮件正文不得包含 ZIP 密码。

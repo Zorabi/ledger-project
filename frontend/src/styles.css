@@ -84,6 +84,13 @@ textarea {
   text-align: center;
 }
 
+.version-text {
+  margin: -4px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 .app-layout {
   position: relative;
   display: grid;
@@ -623,6 +630,10 @@ h1 {
   flex-wrap: wrap;
   gap: 8px;
   padding-top: 4px;
+}
+
+.modal-tip {
+  margin-bottom: 14px;
 }
 
 .dict-type-table {

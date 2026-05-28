@@ -16,12 +16,17 @@ Use this workflow before committing or presenting a completed delivery in this r
    - `docs/product-requirements.md` for changed product behavior, interaction rules, or user-facing constraints.
    - `docs/architecture.md` for changed technical architecture, API contracts, persistence, responsive strategy, or frontend structure.
    - `backend/docs/*` when backend API contracts change.
-4. Run focused verification. Prefer the project’s existing commands:
+4. Update the application version for every code commit:
+   - Use the project version format `X.A.B.C` exactly, for example `1.0.1.0`.
+   - Bump the version whenever committing code, even for UI-only changes.
+   - Keep the version synchronized across backend config defaults, runtime config, frontend fallback display version, Swagger metadata, and the `CHANGELOG.md` version section.
+   - Keep package-manager versions valid for their ecosystems if they cannot use four numeric segments; the product/application version remains the four-segment value exposed by `/api/v1/version`.
+5. Run focused verification. Prefer the project’s existing commands:
    - Frontend-only changes: `npm run build` in `frontend`.
    - Backend/API changes: `go test ./...` in `backend`.
    - Full-stack changes: run both.
-5. Stage intentionally and inspect the staged diff or `git status --short`.
-6. Commit with a concise Chinese commit message. Do not use English-only commit messages.
+6. Stage intentionally and inspect the staged diff or `git status --short`.
+7. Commit with a concise Chinese commit message. Do not use English-only commit messages.
 
 ## Commit Message Rules
 
@@ -36,6 +41,8 @@ Use this workflow before committing or presenting a completed delivery in this r
 ## Documentation Rules
 
 - Changelog entries should be professional and grouped by `Added`、`Changed`、`Fixed`、`Documentation` when possible.
+- Changelog top-level version headings must include the four-segment version and release date, for example `## v1.0.1.0 - 2026-05-28`.
+- Do not merge unrelated version content into an older version section; add a new version section when a later commit changes product behavior.
 - Product requirements should describe expected behavior, not implementation trivia.
 - Architecture docs should describe stable technical decisions, not one-off bug history.
 - Do not update backend Swagger docs for frontend-only style changes.

@@ -41,6 +41,7 @@ func NewAppHandler(db *gorm.DB) *AppHandler {
 func (h *AppHandler) RegisterRoutes(r *gin.Engine) {
 	v1 := r.Group("/api/v1")
 	v1.GET("/health", func(c *gin.Context) { ok(c, gin.H{"status": "ok"}) })
+	v1.GET("/version", h.Version)
 
 	auth := v1.Group("/auth")
 	auth.POST("/login", h.Login)
@@ -94,6 +95,13 @@ func (h *AppHandler) RegisterRoutes(r *gin.Engine) {
 	protected.POST("/imports/:id/execute", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ExecuteImport)
 }
 
+func (h *AppHandler) Version(c *gin.Context) {
+	ok(c, gin.H{
+		"name":    config.AppConfig.App.Name,
+		"version": config.AppConfig.App.Version,
+	})
+}
+
 func (h *AppHandler) SeedDefaults() error {
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(config.AppConfig.Bootstrap.SuperAdminPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -129,16 +137,25 @@ func (h *AppHandler) Login(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
+
+	if locked, until := h.loginLocked(req.Username, c.ClientIP()); locked {
+		msg := fmt.Sprintf("登录失败次数过多，请于 %s 后再试", until.Format("2006-01-02 15:04:05"))
+		h.audit(c, nil, nil, "login_blocked", "auth_throttle", "", false, models.JSONMap{"username": req.Username, "ip": c.ClientIP(), "locked_until": until.Format(time.RFC3339)})
+		fail(c, http.StatusTooManyRequests, msg)
+		return
+	}
 
 	var user models.User
 	err := h.db.Preload("Family").Where("username = ?", req.Username).First(&user).Error
-	success := err == nil && bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) == nil && user.Status == models.StatusEnabled
-	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
+	passwordOK := err == nil && bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) == nil
+	if err != nil || !passwordOK {
+		h.recordLoginFailure(req.Username, c.ClientIP())
 		h.audit(c, nil, nil, "login_failed", "user", "", false, models.JSONMap{"username": req.Username})
 		fail(c, http.StatusUnauthorized, "账号或密码错误")
 		return
 	}
-	if !success {
+	if user.Status != models.StatusEnabled {
 		h.audit(c, user.FamilyID, &user.ID, "login_failed", "user", strconv.Itoa(int(user.ID)), false, models.JSONMap{"reason": "disabled"})
 		fail(c, http.StatusForbidden, "账号已禁用")
 		return
@@ -147,6 +164,7 @@ func (h *AppHandler) Login(c *gin.Context) {
 		fail(c, http.StatusForbidden, "所属家庭已禁用")
 		return
 	}
+	h.clearLoginFailures(req.Username, c.ClientIP())
 
 	accessToken, err := utils.GenerateAccessToken(user.ID, user.FamilyID, user.Username, user.Role)
 	if err != nil {
@@ -580,6 +598,8 @@ func (h *AppHandler) ResetPassword(c *gin.Context) {
 		}
 		return tx.Model(&models.UserSession{}).Where("user_id = ? AND revoked_at IS NULL", user.ID).Update("revoked_at", now).Error
 	})
+	h.clearLoginFailures(user.Username, "")
+	h.audit(c, user.FamilyID, &auth.UserID, "reset_password", "user", strconv.Itoa(int(user.ID)), true, nil)
 	ok(c, nil)
 }
 
@@ -1293,6 +1313,93 @@ func (h *AppHandler) audit(c *gin.Context, familyID *uint, operatorID *uint, act
 		detail = models.JSONMap{}
 	}
 	_ = h.db.Create(&models.AuditLog{FamilyID: familyID, OperatorID: operatorID, Action: action, ResourceType: resourceType, ResourceID: resourceID, Success: success, IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"), Detail: detail}).Error
+}
+
+func (h *AppHandler) loginLocked(username, ip string) (bool, time.Time) {
+	now := time.Now()
+	keys := loginThrottleKeys(username, ip)
+	if len(keys) == 0 {
+		return false, time.Time{}
+	}
+	var locks []models.AuthThrottle
+	condition, args := loginThrottleCondition(keys)
+	h.db.Where(condition, args...).Where("locked_until IS NOT NULL AND locked_until > ?", now).Find(&locks)
+	var latest time.Time
+	for _, lock := range locks {
+		if lock.LockedUntil != nil && lock.LockedUntil.After(latest) {
+			latest = *lock.LockedUntil
+		}
+	}
+	return !latest.IsZero(), latest
+}
+
+func (h *AppHandler) recordLoginFailure(username, ip string) {
+	now := time.Now()
+	cfg := config.AppConfig.Security
+	window := time.Duration(cfg.LoginWindowMinutes) * time.Minute
+	lockDuration := time.Duration(cfg.LoginLockMinutes) * time.Minute
+	for _, item := range loginThrottleKeys(username, ip) {
+		var throttle models.AuthThrottle
+		err := h.db.Where("scope = ? AND key = ?", item[0], item[1]).First(&throttle).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			throttle = models.AuthThrottle{Scope: item[0], Key: item[1], FailedCount: 1, WindowStartedAt: now, LastFailedAt: now}
+			if throttle.FailedCount >= cfg.LoginMaxAttempts {
+				lockedUntil := now.Add(lockDuration)
+				throttle.LockedUntil = &lockedUntil
+			}
+			h.db.Create(&throttle)
+			continue
+		}
+		if err != nil {
+			continue
+		}
+		if now.Sub(throttle.WindowStartedAt) > window {
+			throttle.FailedCount = 0
+			throttle.WindowStartedAt = now
+			throttle.LockedUntil = nil
+		}
+		throttle.FailedCount += 1
+		throttle.LastFailedAt = now
+		if throttle.FailedCount >= cfg.LoginMaxAttempts {
+			lockedUntil := now.Add(lockDuration)
+			throttle.LockedUntil = &lockedUntil
+		}
+		h.db.Save(&throttle)
+	}
+}
+
+func (h *AppHandler) clearLoginFailures(username, ip string) {
+	keys := loginThrottleKeys(username, ip)
+	if len(keys) == 0 {
+		return
+	}
+	condition, args := loginThrottleCondition(keys)
+	h.db.Where(condition, args...).Delete(&models.AuthThrottle{})
+}
+
+func loginThrottleKeys(username, ip string) [][2]string {
+	keys := [][2]string{}
+	if key := normalizeLoginKey(username); key != "" {
+		keys = append(keys, [2]string{"username", key})
+	}
+	if key := strings.TrimSpace(ip); key != "" {
+		keys = append(keys, [2]string{"ip", key})
+	}
+	return keys
+}
+
+func normalizeLoginKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func loginThrottleCondition(keys [][2]string) (string, []any) {
+	parts := make([]string, 0, len(keys))
+	args := make([]any, 0, len(keys)*2)
+	for _, item := range keys {
+		parts = append(parts, "(scope = ? AND key = ?)")
+		args = append(args, item[0], item[1])
+	}
+	return "(" + strings.Join(parts, " OR ") + ")", args
 }
 
 func (h *AppHandler) contactBelongsToFamily(contactID uint, familyID uint) bool {

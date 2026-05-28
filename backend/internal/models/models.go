@@ -119,6 +119,18 @@ type UserSession struct {
 	CreatedAt        time.Time  `json:"created_at"`
 }
 
+type AuthThrottle struct {
+	ID              uint       `json:"id" gorm:"primaryKey"`
+	Scope           string     `json:"scope" gorm:"size:30;not null;uniqueIndex:idx_auth_throttle_scope_key"`
+	Key             string     `json:"key" gorm:"size:160;not null;uniqueIndex:idx_auth_throttle_scope_key"`
+	FailedCount     int        `json:"failed_count" gorm:"not null;default:0"`
+	WindowStartedAt time.Time  `json:"window_started_at" gorm:"not null;index"`
+	LastFailedAt    time.Time  `json:"last_failed_at" gorm:"not null;index"`
+	LockedUntil     *time.Time `json:"locked_until" gorm:"index"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
 type DictionaryType struct {
 	ID                uint      `json:"id" gorm:"primaryKey"`
 	Code              string    `json:"code" gorm:"size:60;uniqueIndex;not null"`
