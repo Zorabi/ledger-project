@@ -1,0 +1,353 @@
+# 礼尚往来项目架构设计
+
+## 项目结构
+
+项目采用前后端分离结构：
+
+```text
+ledger-project/
+  backend/    Go + Gin + GORM 后端
+  frontend/   Vue 3 + Vite + Naive UI 前端
+  docs/       产品和架构设计文档
+```
+
+后端使用 PostgreSQL。前端使用单应用模式，根据用户角色控制菜单、路由和页面权限。
+
+## 后端模块建议
+
+后端继续使用分层结构，并可按业务域逐步重构：
+
+- `cmd/api`：应用入口、路由注册、服务初始化。
+- `internal/config`：配置加载，支持环境变量覆盖。
+- `internal/database`：PostgreSQL 连接、迁移入口。
+- `internal/models`：GORM 模型。
+- `internal/repository`：数据访问。
+- `internal/services`：业务逻辑。
+- `internal/handlers`：HTTP API。
+- `internal/middleware`：认证、授权、日志、恢复。
+- `internal/scheduler`：定时任务，包括备份任务和 session 清理。
+- `internal/audit`：审计日志封装。
+- `internal/exporter`：Excel 导出、ZIP 加密。
+- `internal/importer`：Excel dry-run 和导入恢复。
+- `internal/mailer`：邮件发送。
+
+## PostgreSQL 数据模型草案
+
+### 租户与用户
+
+`families`
+
+- `id`
+- `name`
+- `contact_name`
+- `contact_email`
+- `remark`
+- `status`
+- `admin_user_id`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+`users`
+
+- `id`
+- `family_id`
+- `username`
+- `display_name`
+- `email`
+- `password_hash`
+- `role`
+- `must_change_password`
+- `status`
+- `last_login_at`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+`user_sessions`
+
+- `id`
+- `user_id`
+- `refresh_token_hash`
+- `expires_at`
+- `revoked_at`
+- `ip`
+- `user_agent`
+- `created_at`
+
+清理规则：每天清理过期 session 和已撤销超过 7 天的 session。
+
+### 数据字典
+
+`dictionary_types`
+
+- `id`
+- `code`
+- `name`
+- `description`
+- `allow_family_custom`
+- `sort_order`
+- `enabled`
+- `created_at`
+- `updated_at`
+
+`dictionary_items`
+
+- `id`
+- `type_id`
+- `family_id`
+- `label`
+- `value`
+- `sort_order`
+- `enabled`
+- `is_system`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+系统预置项 `family_id` 为空，家庭自定义项写入具体 `family_id`。
+
+### 往来对象与记录
+
+`contacts`
+
+- `id`
+- `family_id`
+- `name`
+- `contact_type`
+- `relation_type`
+- `phone`
+- `address`
+- `remark`
+- `status`
+- `created_by`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+`gift_records`
+
+- `id`
+- `family_id`
+- `contact_id`
+- `occasion_type`
+- `direction`
+- `amount_cents`
+- `gift_description`
+- `occurred_on`
+- `handled_by`
+- `reciprocity_status`
+- `related_record_id`
+- `remark`
+- `created_by`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+回礼关联约束：
+
+- `related_record_id` 仅能指向同家庭、同对象、相反方向的流水。
+- 建立关联时，双方记录均写入对方 ID，并将 `reciprocity_status` 更新为 `done`。
+- 取消关联、删除关联记录或更换关联对象时，被关联记录清空关联 ID，并回到 `pending`。
+
+`attachments`
+
+- `id`
+- `family_id`
+- `record_id`
+- `file_name`
+- `storage_key`
+- `file_type`
+- `file_size`
+- `uploaded_by`
+- `created_at`
+- `deleted_at`
+
+第一版预留表和接口边界，可不开放上传入口。
+
+### 备份与导入
+
+`backup_configs`
+
+- `id`
+- `family_id`
+- `enabled`
+- `frequency`
+- `recipient_emails`
+- `encrypt_enabled`
+- `zip_password_encrypted`
+- `zip_password_hint`
+- `last_sent_at`
+- `last_status`
+- `created_at`
+- `updated_at`
+
+`backup_jobs`
+
+- `id`
+- `family_id`
+- `trigger_type`
+- `status`
+- `file_name`
+- `file_size`
+- `file_sha256`
+- `recipient_emails`
+- `started_at`
+- `finished_at`
+- `error_message`
+- `created_by`
+
+`import_jobs`
+
+- `id`
+- `family_id`
+- `operator_id`
+- `status`
+- `dry_run`
+- `source_file_name`
+- `created_count`
+- `updated_count`
+- `skipped_count`
+- `error_count`
+- `started_at`
+- `finished_at`
+- `error_message`
+
+`import_job_errors`
+
+- `id`
+- `import_job_id`
+- `sheet_name`
+- `row_number`
+- `field_name`
+- `error_message`
+- `raw_data`
+
+### 审计
+
+`audit_logs`
+
+- `id`
+- `family_id`
+- `operator_id`
+- `action`
+- `resource_type`
+- `resource_id`
+- `success`
+- `ip`
+- `user_agent`
+- `detail`
+- `created_at`
+
+## 认证与授权
+
+认证流程：
+
+1. 用户使用账号密码登录。
+2. 后端校验密码哈希。
+3. 如果用户被禁用，拒绝登录。
+4. 返回 `access_token` 和 `refresh_token`。
+5. 后端保存 refresh token 哈希到 `user_sessions`。
+6. 前端使用 access token 请求接口。
+7. access token 过期后使用 refresh token 换取新 token。
+
+授权规则：
+
+- 所有业务接口必须从登录上下文获取 `user_id`、`family_id`、`role`。
+- `super_admin` 可访问跨家庭管理接口。
+- `family_admin` 和 `member` 只能访问本家庭数据。
+- 后端必须做角色校验，前端隐藏菜单不能作为权限边界。
+
+## API 设计原则
+
+- 所有列表接口支持分页。
+- 常用列表支持关键词搜索、状态筛选、日期范围筛选。
+- 下拉接口返回系统预置项和当前家庭自定义项。
+- 金额接口输入输出建议以元展示、以后端统一转换为分存储。
+- 返回结构保持稳定，便于 Web 端和手机端复用。
+- 涉及接口变更时同步维护 Swagger。
+
+当前接口约定：
+
+- 统一响应结构为 `{ code, msg, data }`，错误响应同样返回明确 `msg`。
+- `POST /auth/login`、`POST /auth/refresh` 管理 Access Token 与 Refresh Token。
+- 家庭、用户、字典、往来对象、往来流水、审计日志、备份、导入恢复均提供 REST API。
+- 列表接口返回 `{ total, list, page, page_size }`。
+- 家庭级接口必须从登录上下文推导租户；`super_admin` 代家庭操作时通过 `family_id` 查询参数指定目标家庭。
+- `GET /stats/overview` 支持 `start_date`、`end_date` 和 `family_id` 查询参数，并返回 `trend_granularity`。趋势数据在结果跨度不超过 90 天时按日聚合，否则按月聚合。
+
+## 前端架构建议
+
+技术栈：
+
+- Vue 3
+- Vite
+- Naive UI
+- ECharts
+- lucide-vue-next
+
+页面模块：
+
+- 登录页
+- 首次修改密码页
+- 工作台
+- 家庭管理
+- 用户管理
+- 往来对象管理
+- 数据字典管理
+- 礼尚往来记录
+- 对象详情
+- 统计分析
+- 备份配置
+- 导入恢复
+- 审计日志
+
+响应式策略：
+
+- Web 端优先使用表格、筛选区、分页、弹窗表单。
+- 手机端优先使用卡片列表、分组表单、底部导航和移动端图表布局。
+- 手机端内容从顶部开始排列，底部导航固定在视口内并支持横向滚动。
+- 手机端避免页面级横向溢出；必须展示表格时，仅表格容器内部横向滚动。
+- 非当前页面有效的全局控件不展示，例如“搜索对象、手机号”仅在往来对象页展示。
+
+## 定时任务
+
+第一版定时任务内置在 Go 后端进程中。
+
+任务包括：
+
+- 按家庭备份配置发送每日/每周/每月备份邮件。
+- 每日清理 `user_sessions`。
+- 可选清理临时导出文件。
+
+定时任务实现要封装成 service，未来可迁移到独立 worker。
+
+## 备份导入流程
+
+### 定时备份
+
+1. Scheduler 扫描启用的 `backup_configs`。
+2. 判断是否到达执行时间。
+3. 生成家庭级 Excel。
+4. 如果启用加密，使用家庭 ZIP 密码生成加密 ZIP。
+5. 发送邮件。
+6. 写入 `backup_jobs`。
+
+### 导入恢复
+
+1. 上传 Excel。
+2. 解析模板并执行 dry-run。
+3. 返回新增、更新、跳过、错误、冲突统计。
+4. 用户确认正式导入。
+5. 系统先生成当前家庭备份，并发送邮件。
+6. 备份邮件发送成功后执行合并导入。
+7. 写入 `import_jobs`、`import_job_errors` 和 `audit_logs`。
+
+## 安全约束
+
+- 密码不得明文保存。
+- Refresh Token 只保存哈希。
+- ZIP 密码用 `APP_ENCRYPTION_KEY` 加密保存。
+- 邮件正文不得包含 ZIP 密码。
+- 所有家庭级数据查询必须带租户隔离条件。
+- 备份、导入、用户管理、字典管理必须写审计日志。

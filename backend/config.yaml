@@ -1,0 +1,37 @@
+server:
+  port: 8080
+  page:
+    default_page_size: 10
+    default_page_num: 1
+    max_page_size: 100
+
+
+database:
+  postgres:
+    user: "postgres"
+    password: "123456"
+    host: "127.0.0.1"
+    port: 5432
+    dbname: "ledger"
+    ssl_mode: "disable"
+
+jwt:
+  secret: "balalaxiaomixian"
+  signing_method: "hs256"
+  access_token_hours: 2
+  refresh_token_days: 30
+  issuer: "dongx"
+
+bootstrap:
+  super_admin_username: "admin"
+  super_admin_password: "ChangeMe1235!"
+
+smtp:
+  host: ""
+  port: 0
+  username: ""
+  password: ""
+  from: ""
+
+encryption:
+  app_key: ""

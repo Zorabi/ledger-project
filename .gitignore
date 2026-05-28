@@ -1,0 +1,11 @@
+.DS_Store
+.idea/
+
+# Go
+.gocache/
+.gopath/
+backend/ledger-backend
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
