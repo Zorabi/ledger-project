@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -89,6 +90,7 @@ func (h *AppHandler) RegisterRoutes(r *gin.Engine) {
 	protected.PUT("/backup/config", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.UpdateBackupConfig)
 	protected.POST("/backup/export", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ManualBackup)
 	protected.GET("/backup/jobs", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ListBackupJobs)
+	protected.GET("/imports/template", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.DownloadImportTemplate)
 	protected.POST("/imports/dry-run", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ImportDryRun)
 	protected.GET("/imports", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ListImportJobs)
 	protected.GET("/imports/:id/errors", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ListImportErrors)
@@ -1134,18 +1136,28 @@ func (h *AppHandler) ManualBackup(c *gin.Context) {
 	h.audit(c, &familyID, &auth.UserID, "manual_export", "backup_job", strconv.Itoa(int(job.ID)), true, nil)
 	if c.Query("email") == "true" {
 		recipients := h.backupRecipients(familyID, auth.UserID)
-		if err := mailer.SendBackup(recipients, "礼尚往来家庭备份", "附件为当前家庭完整备份。若启用 ZIP 加密，请使用管理端配置的密码提示找回密码。", mailer.Attachment{FileName: fileName, ContentType: contentType, Content: content}); err != nil {
+		if err := mailer.SendBackup(recipients, "礼尚往来家庭备份", backupEmailBody("手动导出", fileName, now), mailer.Attachment{FileName: fileName, ContentType: contentType, Content: content}); err != nil {
 			h.db.Model(&job).Updates(map[string]any{"status": "failed", "error_message": err.Error()})
 			fail(c, http.StatusBadRequest, "备份邮件发送失败："+err.Error())
 			return
 		}
 	}
 	if c.Query("download") == "true" {
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+		setDownloadHeaders(c, fileName)
 		c.Data(http.StatusOK, contentType, content)
 		return
 	}
 	ok(c, job)
+}
+
+func (h *AppHandler) DownloadImportTemplate(c *gin.Context) {
+	template, err := exporter.GenerateImportTemplate()
+	if err != nil {
+		fail(c, http.StatusInternalServerError, "生成导入模板失败")
+		return
+	}
+	setDownloadHeaders(c, template.FileName)
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", template.Content)
 }
 
 func (h *AppHandler) ListBackupJobs(c *gin.Context) {
@@ -1232,7 +1244,7 @@ func (h *AppHandler) ExecuteImport(c *gin.Context) {
 		return
 	}
 	if job.ErrorCount > 0 {
-		fail(c, http.StatusBadRequest, "dry-run 存在错误，不能正式导入")
+		fail(c, http.StatusBadRequest, "导入校验存在错误，不能正式导入")
 		return
 	}
 	payload, err := importer.JSONMapToPayload(job.SourcePayload)
@@ -1251,7 +1263,7 @@ func (h *AppHandler) ExecuteImport(c *gin.Context) {
 		return
 	}
 	recipients := h.backupRecipients(job.FamilyID, auth.UserID)
-	if err := mailer.SendBackup(recipients, "导入恢复前自动备份", "系统即将执行导入恢复，附件为导入前当前家庭完整备份。备份邮件发送成功后才会继续导入。", mailer.Attachment{FileName: fileName, ContentType: contentType, Content: content}); err != nil {
+	if err := mailer.SendBackup(recipients, "导入执行前自动备份", backupEmailBody("导入执行前自动备份", fileName, time.Now()), mailer.Attachment{FileName: fileName, ContentType: contentType, Content: content}); err != nil {
 		h.db.Model(&job).Updates(map[string]any{"status": "blocked", "error_message": "导入前备份邮件发送失败：" + err.Error()})
 		fail(c, http.StatusBadRequest, "导入前备份邮件发送失败，已中止导入："+err.Error())
 		return
@@ -1582,6 +1594,20 @@ func (h *AppHandler) prepareBackupAttachment(familyID uint, fileName string, con
 		return nil, "", "", err
 	}
 	return zipContent, zipName, "application/zip", nil
+}
+
+func setDownloadHeaders(c *gin.Context, fileName string) {
+	escaped := strings.ReplaceAll(fileName, `"`, "")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, escaped, urlQueryEscape(fileName)))
+}
+
+func urlQueryEscape(value string) string {
+	replacer := strings.NewReplacer("+", "%20")
+	return replacer.Replace(url.QueryEscape(value))
+}
+
+func backupEmailBody(scene string, fileName string, sentAt time.Time) string {
+	return fmt.Sprintf("您好：\n\n本邮件由礼尚往来系统自动发送。\n\n备份场景：%s\n附件名称：%s\n导出时间：%s\n\n附件包含当前家庭的往来对象、往来流水、家庭字典、家庭成员和统计摘要。若附件为 ZIP 文件，说明当前家庭已开启备份加密，请使用备份配置中的密码提示确认解压密码。\n\n如您未进行相关操作，请及时联系系统管理员。", scene, fileName, sentAt.Format("2006-01-02 15:04:05"))
 }
 
 func mapToJSONMap(value map[string]string) models.JSONMap {

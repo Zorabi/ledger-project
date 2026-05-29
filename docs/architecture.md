@@ -28,7 +28,7 @@ ledger-project/
 - `internal/scheduler`：定时任务，包括备份任务和 session 清理。
 - `internal/audit`：审计日志封装。
 - `internal/exporter`：Excel 导出、ZIP 加密。
-- `internal/importer`：Excel dry-run 和导入恢复。
+- `internal/importer`：Excel 导入校验和导入恢复。
 - `internal/mailer`：邮件发送。
 
 ## PostgreSQL 数据模型草案
@@ -388,7 +388,7 @@ ledger-project/
 ### 导入恢复
 
 1. 上传 Excel。
-2. 解析模板并执行 dry-run。
+2. 解析模板并执行导入校验。
 3. 返回新增、更新、跳过、错误、冲突统计。
 4. 用户确认正式导入。
 5. 系统先生成当前家庭备份，并发送邮件。

@@ -15,7 +15,7 @@ type Config struct {
 	JWT        JWTConfig
 	Security   SecurityConfig
 	Bootstrap  BootstrapConfig
-	SMTP       SMTPConfig
+	Email      EmailConfig
 	Encryption EncryptionConfig
 }
 
@@ -70,7 +70,7 @@ type BootstrapConfig struct {
 	SuperAdminPassword string `mapstructure:"super_admin_password"`
 }
 
-type SMTPConfig struct {
+type EmailConfig struct {
 	Host     string
 	Port     int
 	Username string
@@ -97,7 +97,7 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.2.0.4")
+	v.SetDefault("app.version", "1.2.1.0")
 	v.SetDefault("database.postgres.auto_create", true)
 	v.SetDefault("database.postgres.auto_migrate", true)
 	v.SetDefault("jwt.signing_method", "HS256")
@@ -137,11 +137,11 @@ func LoadConfig() {
 		"security.login_cleanup_after_days",
 		"bootstrap.super_admin_username",
 		"bootstrap.super_admin_password",
-		"smtp.host",
-		"smtp.port",
-		"smtp.username",
-		"smtp.password",
-		"smtp.from",
+		"email.host",
+		"email.port",
+		"email.username",
+		"email.password",
+		"email.from",
 		"encryption.app_key",
 	})
 	v.BindEnv("encryption.app_key", "APP_ENCRYPTION_KEY")

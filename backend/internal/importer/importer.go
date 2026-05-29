@@ -1,17 +1,16 @@
 package importer
 
 import (
-	"archive/zip"
 	"bytes"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 
 	"ledger-backend/internal/models"
@@ -92,14 +91,15 @@ func JSONMapToPayload(value models.JSONMap) (Payload, error) {
 }
 
 func ParseBackup(content []byte) (Payload, []string, error) {
-	zr, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
+	f, err := excelize.OpenReader(bytes.NewReader(content))
 	if err != nil {
 		return Payload{}, nil, err
 	}
+	defer f.Close()
 	sheets := map[string][][]string{}
 	names := []string{"往来流水", "往来对象", "家庭字典", "家庭成员"}
-	for i, name := range names {
-		rows, err := readSheet(zr, fmt.Sprintf("xl/worksheets/sheet%d.xml", i+1))
+	for _, name := range names {
+		rows, err := readSheet(f, name)
 		if err != nil {
 			return Payload{}, nil, err
 		}
@@ -113,57 +113,12 @@ func ParseBackup(content []byte) (Payload, []string, error) {
 	}, names, nil
 }
 
-func readSheet(zr *zip.Reader, name string) ([][]string, error) {
-	for _, f := range zr.File {
-		if f.Name != name {
-			continue
-		}
-		rc, err := f.Open()
-		if err != nil {
-			return nil, err
-		}
-		defer rc.Close()
-		data, err := io.ReadAll(rc)
-		if err != nil {
-			return nil, err
-		}
-		return parseSheetXML(data), nil
+func readSheet(f *excelize.File, name string) ([][]string, error) {
+	index, err := f.GetSheetIndex(name)
+	if err != nil || index == -1 {
+		return nil, fmt.Errorf("缺少工作表 %s", name)
 	}
-	return nil, fmt.Errorf("缺少工作表 %s", name)
-}
-
-func parseSheetXML(data []byte) [][]string {
-	decoder := xml.NewDecoder(bytes.NewReader(data))
-	rows := [][]string{}
-	current := []string{}
-	inT := false
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			break
-		}
-		switch t := token.(type) {
-		case xml.StartElement:
-			if t.Name.Local == "row" {
-				current = []string{}
-			}
-			if t.Name.Local == "t" {
-				inT = true
-			}
-		case xml.EndElement:
-			if t.Name.Local == "row" {
-				rows = append(rows, current)
-			}
-			if t.Name.Local == "t" {
-				inT = false
-			}
-		case xml.CharData:
-			if inT {
-				current = append(current, string(t))
-			}
-		}
-	}
-	return rows
+	return f.GetRows(name)
 }
 
 func rowsToMaps(rows [][]string) []map[string]string {
@@ -228,8 +183,20 @@ func inspectUsers(db *gorm.DB, familyID uint, rows []map[string]string, result *
 
 func inspectRecords(db *gorm.DB, familyID uint, rows []map[string]string, result *Result) {
 	for i, row := range rows {
-		if row["对象编号"] == "" || row["方向"] == "" || row["发生日期"] == "" {
-			addError(result, "往来流水", i+2, "必填字段", "对象编号、方向、发生日期不能为空", row)
+		if row["方向"] == "" || row["发生日期"] == "" {
+			addError(result, "往来流水", i+2, "必填字段", "方向、发生日期不能为空", row)
+			continue
+		}
+		if row["对象编号"] == "" && row["对象名称"] == "" {
+			addError(result, "往来流水", i+2, "往来对象", "对象编号和对象名称至少填写一个", row)
+			continue
+		}
+		contactID := parseID(row["对象编号"])
+		if contactID == 0 && row["对象名称"] != "" && !contactNameExists(db, familyID, row["对象名称"]) {
+			result.Created++
+		}
+		if _, err := parseAmountCents(row); err != nil {
+			addError(result, "往来流水", i+2, "金额", err.Error(), row)
 			continue
 		}
 		if id := parseID(row["业务编号"]); id > 0 && exists(db, &models.GiftRecord{}, familyID, id) {
@@ -314,9 +281,9 @@ func applyUsers(tx *gorm.DB, familyID uint, rows []map[string]string, result *Re
 
 func applyRecords(tx *gorm.DB, familyID uint, rows []map[string]string, operatorID uint, result *Result) {
 	for i, row := range rows {
-		contactID := parseID(row["对象编号"])
-		if contactID == 0 || !exists(tx, &models.Contact{}, familyID, contactID) {
-			addError(result, "往来流水", i+2, "对象编号", "对象不存在", row)
+		contactID, err := resolveContactID(tx, familyID, row, operatorID)
+		if err != nil {
+			addError(result, "往来流水", i+2, "往来对象", err.Error(), row)
 			continue
 		}
 		occurredOn, err := time.Parse("2006-01-02", row["发生日期"])
@@ -324,7 +291,11 @@ func applyRecords(tx *gorm.DB, familyID uint, rows []map[string]string, operator
 			addError(result, "往来流水", i+2, "发生日期", "日期格式必须为 YYYY-MM-DD", row)
 			continue
 		}
-		amount, _ := strconv.ParseInt(row["金额(分)"], 10, 64)
+		amount, err := parseAmountCents(row)
+		if err != nil {
+			addError(result, "往来流水", i+2, "金额", err.Error(), row)
+			continue
+		}
 		related := parseID(row["关联记录编号"])
 		var relatedPtr *uint
 		if related > 0 {
@@ -361,6 +332,43 @@ func exists[T any](db *gorm.DB, model *T, familyID uint, id uint) bool {
 	return count > 0
 }
 
+func contactNameExists(db *gorm.DB, familyID uint, name string) bool {
+	var count int64
+	db.Model(&models.Contact{}).Where("family_id = ? AND name = ?", familyID, strings.TrimSpace(name)).Count(&count)
+	return count > 0
+}
+
+func resolveContactID(tx *gorm.DB, familyID uint, row map[string]string, operatorID uint) (uint, error) {
+	if id := parseID(row["对象编号"]); id > 0 {
+		if exists(tx, &models.Contact{}, familyID, id) {
+			return id, nil
+		}
+		if strings.TrimSpace(row["对象名称"]) == "" {
+			return 0, errors.New("对象编号不存在，请填写对象名称以便自动创建")
+		}
+	}
+	name := strings.TrimSpace(row["对象名称"])
+	if name == "" {
+		return 0, errors.New("对象编号和对象名称至少填写一个")
+	}
+	var contact models.Contact
+	if err := tx.Where("family_id = ? AND name = ?", familyID, name).First(&contact).Error; err == nil {
+		return contact.ID, nil
+	}
+	contact = models.Contact{
+		FamilyID:     familyID,
+		Name:         name,
+		ContactType:  "个人",
+		RelationType: "其他",
+		Status:       models.StatusEnabled,
+		CreatedBy:    operatorID,
+	}
+	if err := tx.Create(&contact).Error; err != nil {
+		return 0, err
+	}
+	return contact.ID, nil
+}
+
 func addError(result *Result, sheet string, row int, field string, message string, raw map[string]string) {
 	result.Errors = append(result.Errors, RowError{SheetName: sheet, RowNumber: row, FieldName: field, ErrorMessage: message, RawData: raw})
 }
@@ -378,4 +386,23 @@ func fallback(value, defaultValue string) string {
 		return defaultValue
 	}
 	return strings.TrimSpace(value)
+}
+
+func parseAmountCents(row map[string]string) (int64, error) {
+	if cents := strings.TrimSpace(row["金额(分)"]); cents != "" {
+		value, err := strconv.ParseInt(cents, 10, 64)
+		if err != nil {
+			return 0, errors.New("金额(分)必须是整数")
+		}
+		return value, nil
+	}
+	yuan := strings.TrimSpace(row["金额(元)"])
+	if yuan == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseFloat(yuan, 64)
+	if err != nil {
+		return 0, errors.New("金额(元)必须是数字")
+	}
+	return int64(math.Round(value * 100)), nil
 }

@@ -22,7 +22,9 @@ import {
 import { createDiscreteApi, dateZhCN, NButton, NPopconfirm, NSpace, type DataTableColumns, type UploadFileInfo, zhCN } from 'naive-ui'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.0.4'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.1.0'
+const FAMILY_CACHE_KEY = 'ledger_families_cache'
+const SELECTED_FAMILY_KEY = 'selected_family_id'
 
 type Role = 'super_admin' | 'family_admin' | 'member'
 type ViewKey =
@@ -68,7 +70,7 @@ const viewError = ref('')
 const authReady = ref(false)
 const appVersion = ref(FALLBACK_VERSION)
 const keyword = ref('')
-const selectedFamilyId = ref<number | null>(null)
+const selectedFamilyId = ref<number | null>(readCachedSelectedFamilyId())
 const loadedViews = reactive<Record<string, boolean>>({})
 const showFamilyModal = ref(false)
 const showUserModal = ref(false)
@@ -99,7 +101,7 @@ const dictTypeForm = reactive({ code: '', name: '', description: '', allow_famil
 const backupForm = reactive({ enabled: false, frequency: 'weekly', recipient_emails_text: '', encrypt_enabled: false, zip_password: '', zip_password_hint: '' })
 const importFile = ref<UploadFileInfo | null>(null)
 
-const families = ref<any[]>([])
+const families = ref<any[]>(readCachedFamilies())
 const users = ref<any[]>([])
 const contacts = ref<any[]>([])
 const records = ref<any[]>([])
@@ -119,12 +121,64 @@ const occasionChart = ref<HTMLElement | null>(null)
 const contactChart = ref<HTMLElement | null>(null)
 const relationChart = ref<HTMLElement | null>(null)
 let chartInstances: echarts.ECharts[] = []
+const latestRequestSeq: Record<string, number> = {}
+let viewLoadSeq = 0
+
+function readCachedFamilies() {
+  try {
+    const raw = localStorage.getItem(FAMILY_CACHE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function cacheFamilies(list: any[]) {
+  localStorage.setItem(FAMILY_CACHE_KEY, JSON.stringify(list))
+}
+
+function readCachedSelectedFamilyId() {
+  const raw = localStorage.getItem(SELECTED_FAMILY_KEY)
+  if (!raw) return null
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
+}
+
+function persistSelectedFamilyId(value: number | null) {
+  if (value === null || value === undefined) {
+    localStorage.removeItem(SELECTED_FAMILY_KEY)
+    return
+  }
+  localStorage.setItem(SELECTED_FAMILY_KEY, String(value))
+}
+
+function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return (...args: Parameters<T>) => {
+    if (timer) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = null
+      fn(...args)
+    }, wait)
+  }
+}
+
+async function latestOnly<T>(key: string, loader: () => Promise<T>, apply: (data: T) => void) {
+  const seq = (latestRequestSeq[key] || 0) + 1
+  latestRequestSeq[key] = seq
+  const data = await loader()
+  if (latestRequestSeq[key] === seq) apply(data)
+}
 
 const isLoggedIn = computed(() => Boolean(token.value && user.value))
 const mustChangePassword = computed(() => Boolean(user.value?.must_change_password))
 const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
 const isAdmin = computed(() => user.value?.role === 'super_admin' || user.value?.role === 'family_admin')
 const currentFamilyId = computed(() => selectedFamilyId.value || user.value?.family_id || null)
+const viewCacheKey = (view: ViewKey) => `${view}:${currentFamilyId.value || 'system'}`
+const activeViewCacheKey = computed(() => viewCacheKey(activeView.value))
+const showFullViewLoading = computed(() => viewLoading.value && !loadedViews[activeViewCacheKey.value])
 const dictionaryGroups = computed(() =>
   dictionaryTypes.value.map((type) => ({
     type,
@@ -201,6 +255,32 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body.data as T
 }
 
+async function downloadBlob(path: string, options: RequestInit = {}, fallbackName = 'download.xlsx') {
+  const headers = new Headers(options.headers)
+  if (!(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
+  if (token.value) headers.set('Authorization', `Bearer ${token.value}`)
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.msg || `下载失败（${response.status}）`)
+  }
+  const blob = await response.blob()
+  const fileName = parseDownloadFileName(response.headers.get('Content-Disposition')) || fallbackName
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function parseDownloadFileName(disposition: string | null) {
+  if (!disposition) return ''
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  if (encoded) return decodeURIComponent(encoded)
+  return disposition.match(/filename="?([^"]+)"?/i)?.[1] || ''
+}
+
 async function runAction(action: () => Promise<void>) {
   try {
     await action()
@@ -258,7 +338,7 @@ async function login() {
     user.value = data.user
     localStorage.setItem('access_token', token.value)
     localStorage.setItem('refresh_token', refreshToken.value)
-    selectedFamilyId.value = user.value?.family_id || null
+    selectedFamilyId.value = user.value?.role === 'super_admin' ? readCachedSelectedFamilyId() : user.value?.family_id || null
     message.success('登录成功')
     if (!user.value?.must_change_password) await loadInitialData()
   } catch (error: any) {
@@ -284,7 +364,7 @@ async function loadMe() {
   }
   try {
     user.value = await api<SessionUser>('/me')
-    selectedFamilyId.value = user.value.family_id || null
+    selectedFamilyId.value = user.value.role === 'super_admin' ? readCachedSelectedFamilyId() : user.value.family_id || null
     if (!user.value.must_change_password) await loadInitialData()
   } catch {
     logout()
@@ -327,15 +407,15 @@ function clearLoadedViews() {
 }
 
 async function loadView(view: ViewKey, force = false) {
-  const familyKey = currentFamilyId.value || 'system'
-  const cacheKey = `${view}:${familyKey}`
+  const seq = ++viewLoadSeq
+  const cacheKey = viewCacheKey(view)
   viewError.value = ''
   if (isSuperAdmin.value && !currentFamilyId.value && ['backup', 'imports'].includes(view)) {
     viewError.value = '请先在顶部选择一个家庭，再使用该功能。'
     backupJobs.value = []
     importJobs.value = []
     importErrors.value = []
-    return
+    return true
   }
 
   viewLoading.value = true
@@ -362,41 +442,74 @@ async function loadView(view: ViewKey, force = false) {
       await loadAudit()
     }
     loadedViews[cacheKey] = true
+    return true
   } catch (error: any) {
+    if (seq !== viewLoadSeq) return false
     viewError.value = error?.message || '页面加载失败'
     message.error(viewError.value)
+    return false
   } finally {
-    viewLoading.value = false
+    if (seq === viewLoadSeq) viewLoading.value = false
   }
 }
 
 async function switchView(view: ViewKey) {
+  if (activeView.value === view && viewLoading.value) return
+  if (activeView.value === view) {
+    debouncedLoadActiveView(true)
+    return
+  }
+  if (loadedViews[viewCacheKey(view)]) {
+    activeView.value = view
+    localStorage.setItem('active_view', view)
+    window.scrollTo({ top: 0, left: 0 })
+    debouncedLoadActiveView(true)
+    await nextTick()
+    scheduleChartRender()
+    return
+  }
+  const loaded = await loadView(view)
+  if (!loaded) return
   activeView.value = view
   localStorage.setItem('active_view', view)
   window.scrollTo({ top: 0, left: 0 })
-  await loadView(view)
+  await nextTick()
   scheduleChartRender()
 }
 
 async function handleFamilyChange() {
+  persistSelectedFamilyId(selectedFamilyId.value)
   clearLoadedViews()
-  await loadView(activeView.value, true)
-  scheduleChartRender()
+  debouncedLoadActiveView(true)
 }
 
+const debouncedLoadActiveView = debounce((force = false) => {
+  loadView(activeView.value, force).then(scheduleChartRender)
+}, 180)
+
 async function loadFamilies() {
-  const data = await api<PageResult<any>>('/families?page_size=100')
-  families.value = data.list
+  await latestOnly('families', () => api<PageResult<any>>('/families?page_size=100'), (data) => {
+    families.value = data.list
+    cacheFamilies(data.list)
+    if (selectedFamilyId.value && !data.list.some((item) => item.id === selectedFamilyId.value)) {
+      selectedFamilyId.value = null
+      persistSelectedFamilyId(null)
+    }
+  })
 }
 
 async function loadUsers() {
-  const data = await api<PageResult<any>>('/users?page_size=100')
-  users.value = data.list
+  await latestOnly('users', () => api<PageResult<any>>('/users?page_size=100'), (data) => {
+    users.value = data.list
+  })
 }
 
 async function loadContacts() {
-  const data = await api<PageResult<any>>(`/contacts?page_size=100&keyword=${encodeURIComponent(keyword.value)}${familyQuery().replace('?', '&')}`)
-  contacts.value = data.list
+  const requestKeyword = keyword.value
+  const requestFamily = familyQuery().replace('?', '&')
+  await latestOnly('contacts', () => api<PageResult<any>>(`/contacts?page_size=100&keyword=${encodeURIComponent(requestKeyword)}${requestFamily}`), (data) => {
+    contacts.value = data.list
+  })
 }
 
 async function loadRecords() {
@@ -408,17 +521,21 @@ async function loadRecords() {
   if (recordQuery.start_date) params.set('start_date', recordQuery.start_date)
   if (recordQuery.end_date) params.set('end_date', recordQuery.end_date)
   if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
-  const data = await api<PageResult<any>>(`/gift-records?${params.toString()}`)
-  records.value = data.list
-  recordQuery.total = data.total
+  const query = params.toString()
+  await latestOnly('records', () => api<PageResult<any>>(`/gift-records?${query}`), (data) => {
+    records.value = data.list
+    recordQuery.total = data.total
+  })
 }
 
 async function loadDashboardRecords() {
   const params = new URLSearchParams({ page: '1', page_size: '8' })
   appendStatsQueryParams(params)
   if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
-  const data = await api<PageResult<any>>(`/gift-records?${params.toString()}`)
-  records.value = data.list
+  const query = params.toString()
+  await latestOnly('records', () => api<PageResult<any>>(`/gift-records?${query}`), (data) => {
+    records.value = data.list
+  })
 }
 
 function appendStatsQueryParams(params: URLSearchParams) {
@@ -456,13 +573,18 @@ function setStatsRange(range: string) {
 }
 
 async function loadDictionaries() {
-  const [types, items] = await Promise.all([
-    api<PageResult<any>>('/dictionary-types?page_size=100'),
-    api<PageResult<any>>(`/dictionary-items?page_size=200${familyQuery().replace('?', '&')}`)
-  ])
-  dictionaryTypes.value = types.list
-  dictionaryItems.value = items.list
-  if (!dictForm.type_id && types.list[0]) dictForm.type_id = types.list[0].id
+  const requestFamily = familyQuery().replace('?', '&')
+  await latestOnly('dictionaries', async () => {
+    const [types, items] = await Promise.all([
+      api<PageResult<any>>('/dictionary-types?page_size=100'),
+      api<PageResult<any>>(`/dictionary-items?page_size=200${requestFamily}`)
+    ])
+    return { types, items }
+  }, ({ types, items }) => {
+    dictionaryTypes.value = types.list
+    dictionaryItems.value = items.list
+    if (!dictForm.type_id && types.list[0]) dictForm.type_id = types.list[0].id
+  })
 }
 
 async function loadStats() {
@@ -470,7 +592,9 @@ async function loadStats() {
   appendStatsQueryParams(params)
   if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
   const query = params.toString()
-  stats.value = await api<any>(`/stats/overview${query ? `?${query}` : ''}`)
+  await latestOnly('stats', () => api<any>(`/stats/overview${query ? `?${query}` : ''}`), (data) => {
+    stats.value = data
+  })
 }
 
 async function loadAudit() {
@@ -478,27 +602,39 @@ async function loadAudit() {
   if (auditQuery.keyword) params.set('keyword', auditQuery.keyword)
   if (auditQuery.action) params.set('action', auditQuery.action)
   if (auditQuery.success !== null) params.set('success', String(auditQuery.success))
-  const data = await api<PageResult<any>>(`/audit-logs?${params.toString()}`)
-  auditLogs.value = data.list
-  auditQuery.total = data.total
+  const query = params.toString()
+  await latestOnly('audit', () => api<PageResult<any>>(`/audit-logs?${query}`), (data) => {
+    auditLogs.value = data.list
+    auditQuery.total = data.total
+  })
 }
 
 async function loadBackup() {
   if (!currentFamilyId.value) return
-  backupConfig.value = await api<any>(`/backup/config${familyQuery()}`)
-  backupForm.enabled = backupConfig.value.enabled
-  backupForm.frequency = backupConfig.value.frequency
-  backupForm.recipient_emails_text = (backupConfig.value.recipient_emails || []).join('\n')
-  backupForm.encrypt_enabled = backupConfig.value.encrypt_enabled
-  backupForm.zip_password_hint = backupConfig.value.zip_password_hint || ''
-  const jobs = await api<PageResult<any>>(`/backup/jobs?page_size=50${familyQuery().replace('?', '&')}`)
-  backupJobs.value = jobs.list
+  const requestFamilyQuery = familyQuery()
+  await latestOnly('backup', async () => {
+    const [configData, jobs] = await Promise.all([
+      api<any>(`/backup/config${requestFamilyQuery}`),
+      api<PageResult<any>>(`/backup/jobs?page_size=50${requestFamilyQuery.replace('?', '&')}`)
+    ])
+    return { configData, jobs }
+  }, ({ configData, jobs }) => {
+    backupConfig.value = configData
+    backupForm.enabled = configData.enabled
+    backupForm.frequency = configData.frequency
+    backupForm.recipient_emails_text = (configData.recipient_emails || []).join('\n')
+    backupForm.encrypt_enabled = configData.encrypt_enabled
+    backupForm.zip_password_hint = configData.zip_password_hint || ''
+    backupJobs.value = jobs.list
+  })
 }
 
 async function loadImports() {
   if (!currentFamilyId.value) return
-  const data = await api<PageResult<any>>(`/imports?page_size=50${familyQuery().replace('?', '&')}`)
-  importJobs.value = data.list
+  const requestFamily = familyQuery().replace('?', '&')
+  await latestOnly('imports', () => api<PageResult<any>>(`/imports?page_size=50${requestFamily}`), (data) => {
+    importJobs.value = data.list
+  })
 }
 
 async function createFamily() {
@@ -628,17 +764,18 @@ async function saveBackupAndClose() {
 }
 
 async function downloadBackup(email = false) {
-  const data = await api<Blob>(`/backup/export${familyQuery()}${familyQuery() ? '&' : '?'}download=${email ? 'false' : 'true'}&email=${email ? 'true' : 'false'}`, { method: 'POST' })
-  if (!email && data instanceof Blob) {
-    const url = URL.createObjectURL(data)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'ledger-backup.xlsx'
-    link.click()
-    URL.revokeObjectURL(url)
+  if (email) {
+    await api(`/backup/export${familyQuery()}${familyQuery() ? '&' : '?'}download=false&email=true`, { method: 'POST' })
+  } else {
+    await downloadBlob(`/backup/export${familyQuery()}${familyQuery() ? '&' : '?'}download=true&email=false`, { method: 'POST' }, '礼尚往来-完整备份.xlsx')
   }
   message.success(email ? '备份邮件已发送' : '备份已下载')
   await loadBackup()
+}
+
+async function downloadImportTemplate() {
+  await downloadBlob(`/imports/template${familyQuery()}`, {}, '礼尚往来-导入模板.xlsx')
+  message.success('导入模板已下载')
 }
 
 async function dryRunImport() {
@@ -649,7 +786,7 @@ async function dryRunImport() {
   const form = new FormData()
   form.append('file', importFile.value.file)
   const data = await api<any>(`/imports/dry-run${familyQuery()}`, { method: 'POST', body: form })
-  message.success(`dry-run 完成：新增 ${data.job.created_count}，更新 ${data.job.updated_count}，错误 ${data.job.error_count}`)
+  message.success(`导入校验完成：新增 ${data.job.created_count}，更新 ${data.job.updated_count}，错误 ${data.job.error_count}`)
   importErrors.value = data.errors || []
   showImportModal.value = false
   await loadImports()
@@ -659,6 +796,40 @@ async function executeImport(id: number) {
   await api(`/imports/${id}/execute`, { method: 'POST' })
   message.success('导入已执行')
   await Promise.all([loadImports(), loadContacts(), loadRecords(), loadStats()])
+}
+
+const debouncedContactsSearch = debounce(() => {
+  if (activeView.value === 'contacts') loadContacts()
+}, 350)
+
+const debouncedRecordsQuery = debounce(() => {
+  if (activeView.value === 'records') loadRecords()
+}, 250)
+
+const debouncedAuditQuery = debounce(() => {
+  if (activeView.value === 'audit') loadAudit()
+}, 250)
+
+const debouncedStatsQuery = debounce(() => {
+  if (activeView.value === 'dashboard' || activeView.value === 'stats') applyStatsQuery()
+}, 250)
+
+function queryRecords() {
+  recordQuery.page = 1
+  debouncedRecordsQuery()
+}
+
+function queryAudit() {
+  auditQuery.page = 1
+  debouncedAuditQuery()
+}
+
+function refreshAudit() {
+  debouncedAuditQuery()
+}
+
+function queryStats() {
+  debouncedStatsQuery()
 }
 
 function openCreateFamily() {
@@ -1102,6 +1273,7 @@ const auditColumns: DataTableColumns<any> = [
 ]
 
 watch(activeView, () => scheduleChartRender())
+watch(keyword, () => debouncedContactsSearch())
 
 window.addEventListener('resize', () => chartInstances.forEach((chart) => chart.resize()))
 onBeforeUnmount(() => chartInstances.forEach((chart) => chart.dispose()))
@@ -1207,11 +1379,11 @@ onMounted(bootApp)
               <template #prefix><Search :size="18" /></template>
             </n-input>
           </header>
-
+          <div class="refresh-line" :class="{ active: viewLoading }" aria-hidden="true"></div>
           <n-card v-if="viewError" :key="`${activeView}-error`" class="view-state" size="small">
             <n-alert type="warning" :show-icon="false">{{ viewError }}</n-alert>
           </n-card>
-          <section v-else-if="viewLoading" :key="`${activeView}-loading`" class="view-stack view-loading">
+          <section v-if="showFullViewLoading" :key="`${activeView}-loading`" class="view-stack view-loading">
             <n-card size="small" class="skeleton-card">
               <n-skeleton text style="width: 34%" />
               <n-skeleton text :repeat="2" />
@@ -1228,13 +1400,13 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'dashboard'" key="dashboard-view" class="view-stack">
+          <section v-show="activeView === 'dashboard'" key="dashboard-view" class="view-stack">
             <n-card title="时间范围" size="small">
               <div class="filter-grid time-filter">
                 <n-select :value="statsQuery.range" :options="[{ label: '全部时间', value: 'all' }, { label: '本月', value: 'month' }, { label: '本年', value: 'year' }, { label: '近30天', value: 'last30' }, { label: '自定义', value: 'custom' }]" placeholder="选择时间维度" @update:value="setStatsRange" />
                 <n-date-picker v-model:formatted-value="statsQuery.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" @update:formatted-value="statsQuery.range = 'custom'" />
                 <n-date-picker v-model:formatted-value="statsQuery.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" @update:formatted-value="statsQuery.range = 'custom'" />
-                <n-button type="primary" class="query-button" @click="applyStatsQuery"><template #icon><Search :size="16" /></template>查询</n-button>
+                <n-button type="primary" class="query-button" @click="queryStats"><template #icon><Search :size="16" /></template>查询</n-button>
               </div>
             </n-card>
             <div class="metrics">
@@ -1292,7 +1464,7 @@ onMounted(bootApp)
             </section>
           </section>
 
-          <section v-else-if="activeView === 'families'" key="families-view" class="view-stack">
+          <section v-show="activeView === 'families'" key="families-view" class="view-stack">
             <n-card title="家庭列表" size="small">
               <template #header-extra><n-button type="primary" size="small" @click="openCreateFamily"><template #icon><Plus :size="16" /></template>新增家庭</n-button></template>
               <n-data-table class="desktop-table" :data="families" :columns="familyColumns" />
@@ -1307,7 +1479,7 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'users'" key="users-view" class="view-stack">
+          <section v-show="activeView === 'users'" key="users-view" class="view-stack">
             <n-card title="用户列表" size="small">
               <template #header-extra><n-button type="primary" size="small" @click="openCreateUser"><template #icon><Plus :size="16" /></template>新增用户</n-button></template>
               <n-data-table class="desktop-table" :data="users" :columns="userColumns" />
@@ -1326,7 +1498,7 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'contacts'" key="contacts-view" class="view-stack">
+          <section v-show="activeView === 'contacts'" key="contacts-view" class="view-stack">
             <n-card title="对象列表" size="small">
               <template #header-extra><n-button type="primary" size="small" @click="openCreateContact"><template #icon><Plus :size="16" /></template>新增对象</n-button></template>
               <n-data-table class="desktop-table" :data="contacts" :columns="contactColumns" />
@@ -1341,7 +1513,7 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'records'" key="records-view" class="view-stack">
+          <section v-show="activeView === 'records'" key="records-view" class="view-stack">
             <n-card title="礼尚往来流水" size="small">
               <template #header-extra><n-button type="primary" size="small" @click="openCreateRecord"><template #icon><Plus :size="16" /></template>新增流水</n-button></template>
               <div class="filter-grid">
@@ -1351,7 +1523,7 @@ onMounted(bootApp)
                 <n-select v-model:value="recordQuery.reciprocity_status" clearable :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="筛选回礼状态" />
                 <n-date-picker v-model:formatted-value="recordQuery.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" />
                 <n-date-picker v-model:formatted-value="recordQuery.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" />
-                <n-button type="primary" class="query-button" @click="() => { recordQuery.page = 1; loadRecords() }"><template #icon><Search :size="16" /></template>查询</n-button>
+                <n-button type="primary" class="query-button" @click="queryRecords"><template #icon><Search :size="16" /></template>查询</n-button>
               </div>
               <n-data-table class="desktop-table" :columns="recordColumns" :data="records" />
               <div class="mobile-list">
@@ -1366,7 +1538,7 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'dictionaries'" key="dictionaries-view" class="view-stack">
+          <section v-show="activeView === 'dictionaries'" key="dictionaries-view" class="view-stack">
             <n-card title="数据字典" size="small">
               <template #header-extra>
                 <n-space>
@@ -1405,13 +1577,13 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'stats'" key="stats-view" class="view-stack">
+          <section v-show="activeView === 'stats'" key="stats-view" class="view-stack">
             <n-card title="时间范围" size="small">
               <div class="filter-grid time-filter">
                 <n-select :value="statsQuery.range" :options="[{ label: '全部时间', value: 'all' }, { label: '本月', value: 'month' }, { label: '本年', value: 'year' }, { label: '近30天', value: 'last30' }, { label: '自定义', value: 'custom' }]" placeholder="选择时间维度" @update:value="setStatsRange" />
                 <n-date-picker v-model:formatted-value="statsQuery.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" @update:formatted-value="statsQuery.range = 'custom'" />
                 <n-date-picker v-model:formatted-value="statsQuery.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" @update:formatted-value="statsQuery.range = 'custom'" />
-                <n-button type="primary" class="query-button" @click="applyStatsQuery"><template #icon><Search :size="16" /></template>查询</n-button>
+                <n-button type="primary" class="query-button" @click="queryStats"><template #icon><Search :size="16" /></template>查询</n-button>
               </div>
             </n-card>
             <div class="metrics">
@@ -1428,7 +1600,7 @@ onMounted(bootApp)
             </div>
           </section>
 
-          <section v-else-if="activeView === 'backup'" key="backup-view" class="view-stack">
+          <section v-show="activeView === 'backup'" key="backup-view" class="view-stack">
             <div class="summary-grid">
               <article><span>备份状态</span><strong>{{ backupForm.enabled ? '已启用' : '未启用' }}</strong></article>
               <article><span>备份频率</span><strong>{{ statusText(backupForm.frequency) }}</strong></article>
@@ -1454,9 +1626,14 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'imports'" key="imports-view" class="view-stack">
+          <section v-show="activeView === 'imports'" key="imports-view" class="view-stack">
             <n-card title="导入恢复" size="small">
-              <template #header-extra><n-button type="primary" size="small" @click="showImportModal = true"><template #icon><Upload :size="16" /></template>上传并校验</n-button></template>
+              <template #header-extra>
+                <n-space>
+                  <n-button size="small" @click="runAction(downloadImportTemplate)"><template #icon><Download :size="16" /></template>下载模板</n-button>
+                  <n-button type="primary" size="small" @click="showImportModal = true"><template #icon><Upload :size="16" /></template>上传并校验</n-button>
+                </n-space>
+              </template>
               <n-data-table v-if="importErrors.length" class="desktop-table" :data="importErrors" :columns="importErrorColumns" />
               <div v-if="importErrors.length" class="mobile-list">
                 <article v-for="error in importErrors" :key="`${error.sheet_name}-${error.row_number}-${error.field_name}`" class="mobile-item">
@@ -1483,13 +1660,13 @@ onMounted(bootApp)
             </n-card>
           </section>
 
-          <section v-else-if="activeView === 'audit'" key="audit-view" class="view-stack">
+          <section v-show="activeView === 'audit'" key="audit-view" class="view-stack">
             <n-card title="审计日志" size="small">
               <div class="filter-grid audit-filter">
                 <n-input v-model:value="auditQuery.keyword" clearable placeholder="搜索用户、动作、资源或 IP" />
                 <n-select v-model:value="auditQuery.success" clearable :options="[{ label: '成功', value: true }, { label: '失败', value: false }]" placeholder="筛选结果" />
-                <n-button size="small" type="primary" class="query-button" @click="() => { auditQuery.page = 1; loadAudit() }"><template #icon><Search :size="16" /></template>查询</n-button>
-                <n-button size="small" @click="loadAudit"><template #icon><RefreshCw :size="16" /></template>刷新</n-button>
+                <n-button size="small" type="primary" class="query-button" @click="queryAudit"><template #icon><Search :size="16" /></template>查询</n-button>
+                <n-button size="small" @click="refreshAudit"><template #icon><RefreshCw :size="16" /></template>刷新</n-button>
               </div>
               <n-data-table class="desktop-table" :data="auditLogs" :columns="auditColumns" />
               <div class="mobile-list">
@@ -1628,11 +1805,12 @@ onMounted(bootApp)
           </n-modal>
 
           <n-modal v-model:show="showImportModal" preset="card" title="上传导入文件" class="form-modal">
+            <p class="modal-hint">请先上传 Excel，系统会先做导入校验，不会立即写入数据。金额可填写“金额(元)”；如文件中有“金额(分)”且有值，会优先按分导入。</p>
             <n-upload :max="1" accept=".xlsx" @update:file-list="(files) => importFile = files[0] || null">
               <n-button><template #icon><Upload :size="17" /></template>选择 Excel 文件</n-button>
             </n-upload>
             <div class="modal-actions">
-              <n-button type="primary" @click="runAction(dryRunImport)">Dry-run 校验</n-button>
+              <n-button type="primary" @click="runAction(dryRunImport)">导入校验</n-button>
             </div>
           </n-modal>
 

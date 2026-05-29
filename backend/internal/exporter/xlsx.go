@@ -1,15 +1,14 @@
 package exporter
 
 import (
-	"archive/zip"
 	"bytes"
-	"encoding/xml"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	azip "github.com/alexmullins/zip"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 
 	"ledger-backend/internal/models"
@@ -21,6 +20,10 @@ type FamilyBackup struct {
 }
 
 func GenerateFamilyBackup(db *gorm.DB, familyID uint) (*FamilyBackup, error) {
+	var family models.Family
+	if err := db.First(&family, familyID).Error; err != nil {
+		return nil, err
+	}
 	var contacts []models.Contact
 	var records []models.GiftRecord
 	var dictionaries []models.DictionaryItem
@@ -50,7 +53,31 @@ func GenerateFamilyBackup(db *gorm.DB, familyID uint) (*FamilyBackup, error) {
 		return nil, err
 	}
 	return &FamilyBackup{
-		FileName: fmt.Sprintf("family-%d-backup-%s.xlsx", familyID, time.Now().Format("20060102150405")),
+		FileName: backupFileName(family.Name, time.Now()),
+		Content:  content,
+	}, nil
+}
+
+func GenerateImportTemplate() (*FamilyBackup, error) {
+	sheets := []sheet{
+		{name: "往来流水", rows: [][]string{giftRecordHeader()}},
+		{name: "往来对象", rows: [][]string{contactHeader()}},
+		{name: "家庭字典", rows: [][]string{dictionaryHeader()}},
+		{name: "家庭成员", rows: [][]string{userHeader()}},
+		{name: "填写说明", rows: [][]string{
+			{"说明项", "内容"},
+			{"导入方式", "先校验导入文件，确认无错误后再执行正式导入。"},
+			{"往来对象不存在", "往来流水可填写对象名称；若对象编号为空且对象名称不存在，系统会自动创建该对象。"},
+			{"金额", "推荐填写金额(元)，例如 128.50；若文件中存在金额(分)列且有值，系统会优先按整数分导入，用于兼容历史备份。"},
+			{"日期", "发生日期格式为 yyyy-MM-dd。"},
+		}},
+	}
+	content, err := buildXLSX(sheets)
+	if err != nil {
+		return nil, err
+	}
+	return &FamilyBackup{
+		FileName: fmt.Sprintf("礼尚往来-导入模板-%s.xlsx", fileTime(time.Now())),
 		Content:  content,
 	}, nil
 }
@@ -61,131 +88,51 @@ type sheet struct {
 }
 
 func buildXLSX(sheets []sheet) ([]byte, error) {
-	buf := &bytes.Buffer{}
-	zw := zip.NewWriter(buf)
-	files := map[string]string{
-		"[Content_Types].xml":        contentTypes(len(sheets)),
-		"_rels/.rels":                rootRels(),
-		"xl/workbook.xml":            workbookXML(sheets),
-		"xl/_rels/workbook.xml.rels": workbookRels(len(sheets)),
-		"xl/styles.xml":              stylesXML(),
-	}
-	for name, body := range files {
-		if err := addZipFile(zw, name, []byte(body)); err != nil {
-			return nil, err
-		}
-	}
+	f := excelize.NewFile()
 	for i, s := range sheets {
-		if err := addZipFile(zw, fmt.Sprintf("xl/worksheets/sheet%d.xml", i+1), []byte(sheetXML(s.rows))); err != nil {
-			return nil, err
+		if i == 0 {
+			_ = f.SetSheetName("Sheet1", s.name)
+		} else {
+			_, _ = f.NewSheet(s.name)
+		}
+		for r, row := range s.rows {
+			cell, _ := excelize.CoordinatesToCellName(1, r+1)
+			if err := f.SetSheetRow(s.name, cell, &row); err != nil {
+				return nil, err
+			}
+		}
+		if len(s.rows) > 0 {
+			headerStyle, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true}})
+			lastCell, _ := excelize.CoordinatesToCellName(len(s.rows[0]), 1)
+			_ = f.SetCellStyle(s.name, "A1", lastCell, headerStyle)
+			for col := 1; col <= len(s.rows[0]); col++ {
+				colName, _ := excelize.ColumnNumberToName(col)
+				_ = f.SetColWidth(s.name, colName, colName, 16)
+			}
 		}
 	}
-	if err := zw.Close(); err != nil {
+	f.SetActiveSheet(0)
+	buf, err := f.WriteToBuffer()
+	if err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
-func addZipFile(zw *zip.Writer, name string, content []byte) error {
-	w, err := zw.Create(name)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(content)
-	return err
-}
-
-func contentTypes(count int) string {
-	var overrides bytes.Buffer
-	for i := 1; i <= count; i++ {
-		overrides.WriteString(fmt.Sprintf(`<Override PartName="/xl/worksheets/sheet%d.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`, i))
-	}
-	return `<?xml version="1.0" encoding="UTF-8"?>` +
-		`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
-		`<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
-		`<Default Extension="xml" ContentType="application/xml"/>` +
-		`<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
-		`<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
-		overrides.String() + `</Types>`
-}
-
-func rootRels() string {
-	return `<?xml version="1.0" encoding="UTF-8"?>` +
-		`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-		`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>` +
-		`</Relationships>`
-}
-
-func workbookXML(sheets []sheet) string {
-	var b bytes.Buffer
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>`)
-	for i, s := range sheets {
-		b.WriteString(fmt.Sprintf(`<sheet name="%s" sheetId="%d" r:id="rId%d"/>`, xmlEscape(s.name), i+1, i+1))
-	}
-	b.WriteString(`</sheets></workbook>`)
-	return b.String()
-}
-
-func workbookRels(count int) string {
-	var b bytes.Buffer
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`)
-	for i := 1; i <= count; i++ {
-		b.WriteString(fmt.Sprintf(`<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet%d.xml"/>`, i, i))
-	}
-	b.WriteString(fmt.Sprintf(`<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`, count+1))
-	b.WriteString(`</Relationships>`)
-	return b.String()
-}
-
-func stylesXML() string {
-	return `<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Arial"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="1"><xf xfId="0"/></cellXfs></styleSheet>`
-}
-
-func sheetXML(rows [][]string) string {
-	var b bytes.Buffer
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`)
-	for r, row := range rows {
-		b.WriteString(fmt.Sprintf(`<row r="%d">`, r+1))
-		for c, value := range row {
-			ref := cellRef(c+1, r+1)
-			b.WriteString(fmt.Sprintf(`<c r="%s" t="inlineStr"><is><t>%s</t></is></c>`, ref, xmlEscape(value)))
-		}
-		b.WriteString(`</row>`)
-	}
-	b.WriteString(`</sheetData></worksheet>`)
-	return b.String()
-}
-
-func cellRef(col, row int) string {
-	name := ""
-	for col > 0 {
-		col--
-		name = string(rune('A'+col%26)) + name
-		col /= 26
-	}
-	return name + strconv.Itoa(row)
-}
-
-func xmlEscape(s string) string {
-	var b bytes.Buffer
-	_ = xml.EscapeText(&b, []byte(s))
-	return b.String()
-}
-
 func giftRecordRows(records []models.GiftRecord) [][]string {
-	rows := [][]string{{"业务编号", "对象编号", "对象名称", "事项类型", "方向", "金额(分)", "礼品说明", "发生日期", "经办人", "回礼状态", "关联记录编号", "备注"}}
+	rows := [][]string{giftRecordHeader()}
 	for _, r := range records {
 		related := ""
 		if r.RelatedRecordID != nil {
 			related = strconv.Itoa(int(*r.RelatedRecordID))
 		}
-		rows = append(rows, []string{itoa(r.ID), itoa(r.ContactID), r.Contact.Name, r.OccasionType, r.Direction, strconv.FormatInt(r.AmountCents, 10), r.GiftDescription, r.OccurredOn.Format("2006-01-02"), r.HandledBy, r.ReciprocityStatus, related, r.Remark})
+		rows = append(rows, []string{itoa(r.ID), itoa(r.ContactID), r.Contact.Name, r.OccasionType, r.Direction, centsToYuan(r.AmountCents), r.GiftDescription, r.OccurredOn.Format("2006-01-02"), r.HandledBy, r.ReciprocityStatus, related, r.Remark})
 	}
 	return rows
 }
 
 func contactRows(contacts []models.Contact) [][]string {
-	rows := [][]string{{"对象编号", "名称", "对象类型", "关系类型", "手机号", "地址", "状态", "备注"}}
+	rows := [][]string{contactHeader()}
 	for _, c := range contacts {
 		rows = append(rows, []string{itoa(c.ID), c.Name, c.ContactType, c.RelationType, c.Phone, c.Address, c.Status, c.Remark})
 	}
@@ -193,7 +140,7 @@ func contactRows(contacts []models.Contact) [][]string {
 }
 
 func dictionaryRows(items []models.DictionaryItem) [][]string {
-	rows := [][]string{{"字典编号", "类型编码", "类型名称", "标签", "值", "排序", "启用"}}
+	rows := [][]string{dictionaryHeader()}
 	for _, i := range items {
 		rows = append(rows, []string{itoa(i.ID), i.Type.Code, i.Type.Name, i.Label, i.Value, strconv.Itoa(i.SortOrder), strconv.FormatBool(i.Enabled)})
 	}
@@ -201,7 +148,7 @@ func dictionaryRows(items []models.DictionaryItem) [][]string {
 }
 
 func userRows(users []models.User) [][]string {
-	rows := [][]string{{"用户编号", "用户名", "显示名", "邮箱", "角色", "状态", "必须改密"}}
+	rows := [][]string{userHeader()}
 	for _, u := range users {
 		rows = append(rows, []string{itoa(u.ID), u.Username, u.DisplayName, u.Email, u.Role, u.Status, strconv.FormatBool(u.MustChangePassword)})
 	}
@@ -220,9 +167,9 @@ func summaryRows(records []models.GiftRecord, contacts []models.Contact) [][]str
 	}
 	return [][]string{
 		{"指标", "值"},
-		{"累计收礼(分)", strconv.FormatInt(inAmount, 10)},
-		{"累计送礼(分)", strconv.FormatInt(outAmount, 10)},
-		{"净差额(分)", strconv.FormatInt(inAmount-outAmount, 10)},
+		{"累计收礼(元)", centsToYuan(inAmount)},
+		{"累计送礼(元)", centsToYuan(outAmount)},
+		{"净差额(元)", centsToYuan(inAmount - outAmount)},
 		{"往来对象数", strconv.Itoa(len(contacts))},
 		{"记录总数", strconv.Itoa(len(records))},
 	}
@@ -230,6 +177,49 @@ func summaryRows(records []models.GiftRecord, contacts []models.Contact) [][]str
 
 func itoa(id uint) string {
 	return strconv.Itoa(int(id))
+}
+
+func giftRecordHeader() []string {
+	return []string{"业务编号", "对象编号", "对象名称", "事项类型", "方向", "金额(元)", "礼品说明", "发生日期", "经办人", "回礼状态", "关联记录编号", "备注"}
+}
+
+func contactHeader() []string {
+	return []string{"对象编号", "名称", "对象类型", "关系类型", "手机号", "地址", "状态", "备注"}
+}
+
+func dictionaryHeader() []string {
+	return []string{"字典编号", "类型编码", "类型名称", "标签", "值", "排序", "启用"}
+}
+
+func userHeader() []string {
+	return []string{"用户编号", "用户名", "显示名", "邮箱", "角色", "状态", "必须改密"}
+}
+
+func centsToYuan(value int64) string {
+	sign := ""
+	if value < 0 {
+		sign = "-"
+		value = -value
+	}
+	return fmt.Sprintf("%s%d.%02d", sign, value/100, value%100)
+}
+
+func backupFileName(familyName string, now time.Time) string {
+	name := sanitizeFileName(familyName)
+	if name == "" {
+		name = "家庭"
+	}
+	return fmt.Sprintf("礼尚往来-%s-完整备份-%s.xlsx", name, fileTime(now))
+}
+
+func sanitizeFileName(value string) string {
+	value = strings.TrimSpace(value)
+	replacer := strings.NewReplacer("/", "-", "\\", "-", ":", "-", "*", "-", "?", "-", "\"", "'", "<", "-", ">", "-", "|", "-")
+	return strings.Trim(replacer.Replace(value), ". ")
+}
+
+func fileTime(value time.Time) string {
+	return value.Format("2006-01-02_15-04")
 }
 
 func EncryptZip(fileName string, content []byte, password string) ([]byte, string, error) {

@@ -7,10 +7,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"mime"
 	"mime/multipart"
 	"net/smtp"
 	"net/textproto"
-	"path/filepath"
 	"strings"
 
 	"ledger-backend/internal/config"
@@ -23,9 +23,9 @@ type Attachment struct {
 }
 
 func SendBackup(recipients []string, subject, body string, attachment Attachment) error {
-	cfg := config.AppConfig.SMTP
+	cfg := config.AppConfig.Email
 	if cfg.Host == "" || cfg.Port == 0 || cfg.From == "" {
-		return errors.New("SMTP 未配置")
+		return errors.New("邮件服务未配置")
 	}
 	recipients = cleanRecipients(recipients)
 	if len(recipients) == 0 {
@@ -34,23 +34,30 @@ func SendBackup(recipients []string, subject, body string, attachment Attachment
 
 	var msg bytes.Buffer
 	writer := multipart.NewWriter(&msg)
-	boundary := writer.Boundary()
 	headers := []string{
 		fmt.Sprintf("From: %s", cfg.From),
 		fmt.Sprintf("To: %s", strings.Join(recipients, ",")),
 		"Subject: " + encodeHeader(subject),
 		"MIME-Version: 1.0",
-		"Content-Type: multipart/mixed; boundary=" + boundary,
+		"Content-Type: " + mime.FormatMediaType("multipart/mixed", map[string]string{"boundary": writer.Boundary()}),
 		"",
 	}
 	msg.WriteString(strings.Join(headers, "\r\n"))
-	msg.WriteString("\r\n--" + boundary + "\r\n")
-	msg.WriteString("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
-	msg.WriteString(body)
+	msg.WriteString("\r\n")
+	textHeader := textproto.MIMEHeader{}
+	textHeader.Set("Content-Type", "text/plain; charset=UTF-8")
+	textHeader.Set("Content-Transfer-Encoding", "8bit")
+	textPart, err := writer.CreatePart(textHeader)
+	if err != nil {
+		return err
+	}
+	if _, err := textPart.Write([]byte(body)); err != nil {
+		return err
+	}
 
 	partHeader := textproto.MIMEHeader{}
 	partHeader.Set("Content-Type", attachment.ContentType)
-	partHeader.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(attachment.FileName)))
+	partHeader.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": attachment.FileName}))
 	partHeader.Set("Content-Transfer-Encoding", "base64")
 	part, err := writer.CreatePart(partHeader)
 	if err != nil {

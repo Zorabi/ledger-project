@@ -71,7 +71,7 @@ docker compose logs -f
 - `POSTGRES_PASSWORD`
 - `JWT_SECRET`
 - `APP_ENCRYPTION_KEY`
-- SMTP 配置
+- email 邮件配置
 
 ### 共享 PostgreSQL 实例部署
 

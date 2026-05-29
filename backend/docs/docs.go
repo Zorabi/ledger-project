@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.2.0.4"
+        "version": "1.2.1.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -2991,13 +2991,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/imports/template": {
+            "get": {
+                "tags": [
+                    "导入恢复"
+                ],
+                "summary": "下载导入模板",
+                "description": "下载可用于新增数据或恢复备份的 Excel 模板",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel 文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/imports/dry-run": {
             "post": {
                 "tags": [
                     "导入恢复"
                 ],
-                "summary": "上传 Excel 并执行 dry-run",
-                "description": "上传 Excel 并执行 dry-run",
+                "summary": "上传 Excel 并执行导入校验",
+                "description": "上传 Excel 并执行导入校验，校验阶段不写入业务数据",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -4315,7 +4361,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.2.0.4",
+	Version:          "1.2.1.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

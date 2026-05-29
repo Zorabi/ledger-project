@@ -7,7 +7,7 @@ server:
 
 app:
   name: "礼尚往来"
-  version: "1.2.0.4"
+  version: "1.2.1.0"
 
 database:
   postgres:
@@ -37,7 +37,7 @@ bootstrap:
   super_admin_username: "admin"
   super_admin_password: "ChangeMe1235!"
 
-smtp:
+email:
   host: ""
   port: 0
   username: ""
