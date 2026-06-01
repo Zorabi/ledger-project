@@ -25,4 +25,6 @@ psql 'postgres://ledger_app:password@db-host:5432/ledger?sslmode=require' -v ON_
 psql 'postgres://ledger_app:password@db-host:5432/ledger?sslmode=require' -v ON_ERROR_STOP=1 -f sql/1.1.0.0/002_data.sql
 psql 'postgres://ledger_app:password@db-host:5432/ledger?sslmode=require' -v ON_ERROR_STOP=1 -f sql/1.2.0.0/001_ddl.sql
 psql 'postgres://ledger_app:password@db-host:5432/ledger?sslmode=require' -v ON_ERROR_STOP=1 -f sql/1.2.0.0/002_data.sql
+psql 'postgres://ledger_app:password@db-host:5432/ledger?sslmode=require' -v ON_ERROR_STOP=1 -f sql/1.2.2.0/001_ddl.sql
+psql 'postgres://ledger_app:password@db-host:5432/ledger?sslmode=require' -v ON_ERROR_STOP=1 -f sql/1.2.2.0/002_data.sql
 ```

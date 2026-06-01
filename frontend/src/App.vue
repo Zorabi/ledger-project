@@ -22,7 +22,7 @@ import {
 import { createDiscreteApi, dateZhCN, NButton, NPopconfirm, NSpace, type DataTableColumns, type UploadFileInfo, zhCN } from 'naive-ui'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.1.0'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.2.0'
 const FAMILY_CACHE_KEY = 'ledger_families_cache'
 const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -81,6 +81,7 @@ const showDictModal = ref(false)
 const showDictTypeModal = ref(false)
 const showBackupModal = ref(false)
 const showImportModal = ref(false)
+const importMode = ref<'manual' | 'backup'>('manual')
 const editingFamilyId = ref<number | null>(null)
 const editingUserId = ref<number | null>(null)
 const resettingUser = ref<any | null>(null)
@@ -120,6 +121,14 @@ const trendChart = ref<HTMLElement | null>(null)
 const occasionChart = ref<HTMLElement | null>(null)
 const contactChart = ref<HTMLElement | null>(null)
 const relationChart = ref<HTMLElement | null>(null)
+const reciprocityChart = ref<HTMLElement | null>(null)
+const balanceChart = ref<HTMLElement | null>(null)
+const occasionTrendChart = ref<HTMLElement | null>(null)
+const occasionMatrixChart = ref<HTMLElement | null>(null)
+const relationMatrixChart = ref<HTMLElement | null>(null)
+const periodCompareChart = ref<HTMLElement | null>(null)
+const handlerChart = ref<HTMLElement | null>(null)
+const mobileNavRef = ref<HTMLElement | null>(null)
 let chartInstances: echarts.ECharts[] = []
 const latestRequestSeq: Record<string, number> = {}
 let viewLoadSeq = 0
@@ -185,10 +194,20 @@ const dictionaryGroups = computed(() =>
     items: dictionaryItems.value.filter((item) => item.type_id === type.id || item.type?.id === type.id)
   }))
 )
+const writableDictionaryTypes = computed(() => dictionaryTypes.value.filter((item) => isSuperAdmin.value || item.allow_family_custom))
+const dictionaryTypeOptions = computed(() =>
+  (editingDictId.value ? dictionaryTypes.value : writableDictionaryTypes.value).map((item) => ({ label: item.name, value: item.id }))
+)
 const contactTypeOptions = computed(() => dictOptions('contact_type'))
 const relationTypeOptions = computed(() => dictOptions('relation_type'))
 const occasionTypeOptions = computed(() => dictOptions('occasion_type'))
 const trendChartTitle = computed(() => stats.value?.trend_granularity === 'day' ? '每日收送趋势' : '月度收送趋势')
+const periodCompareRangeText = computed(() => {
+  const current = stats.value?.period_compare?.current_range
+  const previous = stats.value?.period_compare?.previous_range
+  if (!current?.start_date || !current?.end_date || !previous?.start_date || !previous?.end_date) return '当前周期与上一等长周期'
+  return `当前 ${current.start_date} 至 ${current.end_date}，对比 ${previous.start_date} 至 ${previous.end_date}`
+})
 const relatedRecordOptions = computed(() =>
   records.value
     .filter((item) => item.id !== editingRecordId.value && (!recordForm.contact_id || item.contact_id === recordForm.contact_id) && item.direction !== recordForm.direction)
@@ -251,7 +270,11 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const contentType = response.headers.get('Content-Type') || ''
   if (contentType.includes('application/vnd') || contentType.includes('application/zip')) return response.blob() as T
   const body = await response.json().catch(() => ({}))
-  if (!response.ok || body.code) throw new Error(body.msg || `请求失败（${response.status}）`)
+  if (!response.ok || body.code) {
+    const error = new Error(body.msg || `请求失败（${response.status}）`)
+    ;(error as any).data = body.data
+    throw error
+  }
   return body.data as T
 }
 
@@ -475,6 +498,16 @@ async function switchView(view: ViewKey) {
   window.scrollTo({ top: 0, left: 0 })
   await nextTick()
   scheduleChartRender()
+}
+
+function scrollActiveMobileNavIntoView() {
+  nextTick(() => {
+    const nav = mobileNavRef.value
+    if (!nav) return
+    const activeButton = nav.querySelector<HTMLElement>(`button[data-menu-key="${activeView.value}"]`)
+    if (!activeButton) return
+    activeButton.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  })
 }
 
 async function handleFamilyChange() {
@@ -721,7 +754,7 @@ async function createDictionaryItem() {
     await api('/dictionary-items', { method: 'POST', body: JSON.stringify(dictForm) })
     message.success('字典项已保存')
   }
-  Object.assign(dictForm, { type_id: dictionaryTypes.value[0]?.id || null, label: '', value: '', sort_order: 0, enabled: true })
+  Object.assign(dictForm, { type_id: writableDictionaryTypes.value[0]?.id || null, label: '', value: '', sort_order: 0, enabled: true })
   editingDictId.value = null
   showDictModal.value = false
   await loadDictionaries()
@@ -774,8 +807,8 @@ async function downloadBackup(email = false) {
 }
 
 async function downloadImportTemplate() {
-  await downloadBlob(`/imports/template${familyQuery()}`, {}, '礼尚往来-导入模板.xlsx')
-  message.success('导入模板已下载')
+  await downloadBlob(`/imports/manual/template${familyQuery()}`, {}, '礼尚往来-手工导入模板.xlsx')
+  message.success('手工导入模板已下载')
 }
 
 async function dryRunImport() {
@@ -785,17 +818,47 @@ async function dryRunImport() {
   }
   const form = new FormData()
   form.append('file', importFile.value.file)
-  const data = await api<any>(`/imports/dry-run${familyQuery()}`, { method: 'POST', body: form })
+  const endpoint = importMode.value === 'manual' ? '/imports/manual/dry-run' : '/imports/backup/dry-run'
+  const data = await api<any>(`${endpoint}${familyQuery()}`, { method: 'POST', body: form })
   message.success(`导入校验完成：新增 ${data.job.created_count}，更新 ${data.job.updated_count}，错误 ${data.job.error_count}`)
   importErrors.value = data.errors || []
   showImportModal.value = false
   await loadImports()
 }
 
+function openImportModal(mode: 'manual' | 'backup') {
+  importMode.value = mode
+  importFile.value = null
+  showImportModal.value = true
+}
+
 async function executeImport(id: number) {
-  await api(`/imports/${id}/execute`, { method: 'POST' })
-  message.success('导入已执行')
-  await Promise.all([loadImports(), loadContacts(), loadRecords(), loadStats()])
+  try {
+    await api(`/imports/${id}/execute`, { method: 'POST' })
+    message.success('导入已执行')
+    importErrors.value = []
+    await Promise.all([loadImports(), loadContacts(), loadRecords(), loadStats(), loadDashboardRecords()])
+  } catch (error: any) {
+    message.error(error.message || '导入执行失败')
+    if (Array.isArray(error.data?.errors)) {
+      importErrors.value = error.data.errors
+    }
+    await Promise.all([loadImports(), loadImportErrors(id)])
+  }
+}
+
+async function loadImportErrors(id: number) {
+  const data = await api<PageResult<any>>(`/imports/${id}/errors?page_size=100`)
+  importErrors.value = data.list || []
+}
+
+async function showImportJobErrors(row: any) {
+  await loadImportErrors(row.id)
+  if (importErrors.value.length) {
+    message.error(`发现 ${importErrors.value.length} 条导入错误，请查看错误明细`)
+    return
+  }
+  message.warning(row.error_message || '该批次没有可展示的行级错误')
 }
 
 const debouncedContactsSearch = debounce(() => {
@@ -930,8 +993,12 @@ function setRecordReciprocityStatus(status: string) {
 }
 
 function openCreateDict() {
+  if (!writableDictionaryTypes.value.length) {
+    message.warning('当前没有允许维护的字典类型')
+    return
+  }
   editingDictId.value = null
-  Object.assign(dictForm, { type_id: dictionaryTypes.value[0]?.id || null, label: '', value: '', sort_order: 0, enabled: true })
+  Object.assign(dictForm, { type_id: writableDictionaryTypes.value[0]?.id || null, label: '', value: '', sort_order: 0, enabled: true })
   showDictModal.value = true
 }
 
@@ -948,15 +1015,35 @@ function openEditDictType(row: any) {
 }
 
 function openEditDict(row: any) {
+  if (!canEditDictionaryItem(row)) {
+    message.warning('该字典类型已关闭家庭自定义，家庭字典项不可维护')
+    return
+  }
   editingDictId.value = row.id
   Object.assign(dictForm, { type_id: row.type_id, label: row.label, value: row.value, sort_order: row.sort_order, enabled: row.enabled })
   showDictModal.value = true
 }
 
 async function deleteDict(row: any) {
+  if (!canEditDictionaryItem(row)) {
+    message.warning('该字典类型已关闭家庭自定义，家庭字典项不可维护')
+    return
+  }
   await api(`/dictionary-items/${row.id}`, { method: 'DELETE' })
   message.success('字典项已删除')
   await loadDictionaries()
+}
+
+function canEditDictionaryItem(row: any) {
+  if (row.is_system) return isSuperAdmin.value
+  if (isSuperAdmin.value) return true
+  const type = dictionaryTypes.value.find((item) => item.id === row.type_id || item.id === row.type?.id)
+  return Boolean(type?.allow_family_custom)
+}
+
+function dictionaryItemReadonlyText(row: any) {
+  if (row.is_system) return '系统项'
+  return '家庭项只读'
 }
 
 async function updateUserStatus(row: any) {
@@ -986,6 +1073,7 @@ async function resetUserPassword() {
 }
 
 const money = (cents?: number) => `¥${((cents || 0) / 100).toFixed(2)}`
+const moneyCompact = (cents?: number) => `¥${Number(((cents || 0) / 100).toFixed(0)).toLocaleString('zh-CN')}`
 const directionText = (value: string) => value === 'in' ? '收礼' : '送礼'
 const reciprocityRoleText = (direction: string) => direction === 'in' ? '我方回礼' : '对方回礼'
 const reciprocityRelationText = (direction: string) => direction === 'in' ? '对方回礼流水' : '我方回礼流水'
@@ -1049,11 +1137,21 @@ function renderCharts() {
   const occasionData = (stats.value.occasion_pie || []).map((item: any) => ({ name: dictionaryLabel('occasion_type', item.name), value: item.amount_cents / 100 }))
   const contactData = stats.value.contact_top10 || []
   const relationData = (stats.value.relation_stats || []).map((item: any) => ({ ...item, label: dictionaryLabel('relation_type', item.name) }))
+  const reciprocityData = (stats.value.reciprocity_stats || []).map((item: any) => ({ name: statusText(item.status), value: item.amount_cents / 100, count: item.count }))
+  const balanceData = stats.value.balance_top10 || []
+  const occasionTrendRows = stats.value.occasion_trend || []
+  const occasionTrendPeriods = Array.from(new Set(occasionTrendRows.map((item: any) => item.period))).sort()
+  const occasionTrendNames = Array.from(new Set(occasionTrendRows.map((item: any) => item.name))).slice(0, 6)
+  const occasionMatrixData = (stats.value.occasion_matrix || []).map((item: any) => ({ ...item, label: dictionaryLabel('occasion_type', item.name) }))
+  const relationMatrixData = (stats.value.relation_matrix || []).map((item: any) => ({ ...item, label: dictionaryLabel('relation_type', item.name) }))
+  const compare = stats.value.period_compare || {}
+  const handlerData = stats.value.handler_stats || []
   const axisStyle = { color: '#6a7880', fontSize: 11 }
   const splitLine = { lineStyle: { color: 'rgba(111, 130, 120, 0.12)' } }
   const isMobileChart = window.innerWidth <= 560
   const barGrid = { left: isMobileChart ? 74 : 84, right: isMobileChart ? 78 : 74, bottom: 28, top: 18 }
   const barValueLabel = { show: true, position: 'right', distance: 8, formatter: ({ value }: any) => `¥${Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`, color: '#4a5960' }
+  const richTooltip = { backgroundColor: 'rgba(15, 32, 39, 0.92)', borderWidth: 0, textStyle: { color: '#f7fbf9' }, extraCssText: 'box-shadow:0 12px 28px rgba(10,24,31,.18);border-radius:10px;' }
   const emptyGraphic = (text: string) => ({
     type: 'text',
     left: 'center',
@@ -1062,7 +1160,7 @@ function renderCharts() {
   })
   mountChart(trendChart.value, {
     color: ['#19a66b', '#f59f35'],
-    tooltip: { trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    tooltip: { ...richTooltip, trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
     legend: { top: 6, right: 12, itemWidth: 10, itemHeight: 10 },
     grid: { left: 54, right: 24, top: 54, bottom: 34 },
     xAxis: { type: 'category', boundaryGap: false, data: trendPeriods, axisLabel: { ...axisStyle, formatter: (value: string) => stats.value?.trend_granularity === 'day' ? value.slice(5) : value }, axisTick: { show: false }, axisLine: { lineStyle: { color: 'rgba(82, 104, 96, 0.22)' } } },
@@ -1074,18 +1172,17 @@ function renderCharts() {
   })
   mountChart(occasionChart.value, {
     color: ['#19a66b', '#f59f35', '#4c8df6', '#d95d8b', '#7d68d8', '#16a0a6'],
-    tooltip: { trigger: 'item', formatter: ({ name, value, percent }: any) => `${name}<br/>¥${Number(value || 0).toFixed(2)} · ${percent}%` },
-    legend: { type: 'scroll', bottom: 0, left: 10, right: 10 },
+    tooltip: { ...richTooltip, trigger: 'item', formatter: ({ name, value, percent }: any) => `${name}<br/>¥${Number(value || 0).toFixed(2)} · ${percent}%` },
+    legend: { type: 'scroll', bottom: 0, left: 10, right: 10, icon: 'circle' },
     series: [
       {
         name: '事项占比',
         type: 'pie',
-        radius: ['28%', '68%'],
+        radius: ['48%', '68%'],
         center: ['50%', '43%'],
-        roseType: 'radius',
         minAngle: 8,
         avoidLabelOverlap: true,
-        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+        itemStyle: { borderRadius: 7, borderColor: '#fff', borderWidth: 2 },
         label: { formatter: '{b}\n{d}%', color: '#33424a' },
         data: occasionData
       }
@@ -1094,7 +1191,7 @@ function renderCharts() {
   mountChart(contactChart.value, {
     color: ['#19a66b'],
     graphic: contactData.length ? undefined : emptyGraphic('暂无对象统计'),
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
     grid: barGrid,
     xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
     yAxis: { type: 'category', inverse: true, data: contactData.map((item: any) => item.name), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
@@ -1103,11 +1200,118 @@ function renderCharts() {
   mountChart(relationChart.value, {
     color: ['#4c8df6'],
     graphic: relationData.length ? undefined : emptyGraphic('暂无关系统计'),
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
     grid: barGrid,
     xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
     yAxis: { type: 'category', inverse: true, data: relationData.map((item: any) => item.label), axisLabel: axisStyle, axisTick: { show: false }, axisLine: { show: false } },
     series: [{ name: '关系金额', type: 'bar', barWidth: 16, data: relationData.map((item: any) => item.amount_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0], color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#9dc1ff' }, { offset: 1, color: '#4c8df6' }]) }, label: barValueLabel }]
+  })
+  mountChart(reciprocityChart.value, {
+    color: ['#f2a83b', '#28a978', '#9aa5ad'],
+    graphic: reciprocityData.length ? undefined : emptyGraphic('暂无回礼统计'),
+    tooltip: { ...richTooltip, trigger: 'item', formatter: ({ name, value, data }: any) => `${name}<br/>${Number(data?.count || 0)} 笔 · ¥${Number(value || 0).toFixed(2)}` },
+    legend: { bottom: 0, left: 10, right: 10, icon: 'circle' },
+    series: [{
+      name: '回礼状态',
+      type: 'pie',
+      radius: ['48%', '68%'],
+      center: ['50%', '43%'],
+      minAngle: 8,
+      avoidLabelOverlap: true,
+      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+      label: { formatter: '{b}\n{d}%', color: '#33424a' },
+      data: reciprocityData
+    }]
+  })
+  mountChart(balanceChart.value, {
+    color: ['#2f86c7'],
+    graphic: balanceData.length ? undefined : emptyGraphic('暂无差额统计'),
+    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params: any) => {
+      const item = balanceData[params[0]?.dataIndex]
+      if (!item) return ''
+      return `${item.name}<br/>收礼 ${money(item.received_cents)}<br/>送礼 ${money(item.given_cents)}<br/>净差额 ${money(item.net_cents)}`
+    } },
+    grid: barGrid,
+    xAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
+    yAxis: { type: 'category', inverse: true, data: balanceData.map((item: any) => item.name), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
+    series: [{
+      name: '净差额',
+      type: 'bar',
+      barWidth: 14,
+      data: balanceData.map((item: any) => item.net_cents / 100),
+      itemStyle: { borderRadius: [0, 8, 8, 0], color: ({ value }: any) => Number(value) >= 0 ? '#2f86c7' : '#d86b4a' },
+      label: { ...barValueLabel, formatter: ({ value }: any) => `¥${Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}` }
+    }]
+  })
+  mountChart(occasionTrendChart.value, {
+    color: ['#1f9d72', '#e9a23b', '#4f7fd9', '#c75d8a', '#7a6ccf', '#1d9aa7'],
+    graphic: occasionTrendRows.length ? undefined : emptyGraphic('暂无事项趋势'),
+    tooltip: { ...richTooltip, trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    legend: { type: 'scroll', top: 4, right: 12, icon: 'circle' },
+    grid: { left: 54, right: 24, top: 56, bottom: 34 },
+    xAxis: { type: 'category', data: occasionTrendPeriods, axisLabel: { ...axisStyle, formatter: (value: string) => stats.value?.trend_granularity === 'day' ? value.slice(5) : value }, axisTick: { show: false } },
+    yAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
+    series: occasionTrendNames.map((name) => ({
+      name: dictionaryLabel('occasion_type', String(name)),
+      type: 'line',
+      smooth: true,
+      symbolSize: 5,
+      lineStyle: { width: 2.5 },
+      areaStyle: { opacity: 0.08 },
+      emphasis: { focus: 'series' },
+      data: occasionTrendPeriods.map((period) => (occasionTrendRows.find((item: any) => item.period === period && item.name === name)?.amount_cents || 0) / 100)
+    }))
+  })
+  mountChart(relationMatrixChart.value, {
+    color: ['#36a97d', '#f0a43a'],
+    graphic: relationMatrixData.length ? undefined : emptyGraphic('暂无关系收送统计'),
+    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    legend: { top: 4, right: 12, icon: 'circle' },
+    grid: { ...barGrid, top: 42 },
+    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
+    yAxis: { type: 'category', inverse: true, data: relationMatrixData.map((item: any) => item.label), axisLabel: axisStyle, axisTick: { show: false }, axisLine: { show: false } },
+    series: [
+      { name: '收礼', type: 'bar', barGap: '18%', data: relationMatrixData.map((item: any) => item.received_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } },
+      { name: '送礼', type: 'bar', data: relationMatrixData.map((item: any) => item.given_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } }
+    ]
+  })
+  mountChart(occasionMatrixChart.value, {
+    color: ['#2f86c7', '#e69a32'],
+    graphic: occasionMatrixData.length ? undefined : emptyGraphic('暂无事项收送统计'),
+    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    legend: { top: 4, right: 12, icon: 'circle' },
+    grid: { ...barGrid, top: 42 },
+    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
+    yAxis: { type: 'category', inverse: true, data: occasionMatrixData.map((item: any) => item.label), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
+    series: [
+      { name: '收礼', type: 'bar', barGap: '18%', data: occasionMatrixData.map((item: any) => item.received_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } },
+      { name: '送礼', type: 'bar', data: occasionMatrixData.map((item: any) => item.given_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } }
+    ]
+  })
+  mountChart(periodCompareChart.value, {
+    color: ['#2f86c7', '#aeb9c0'],
+    tooltip: { ...richTooltip, trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    legend: { top: 4, right: 12, icon: 'circle' },
+    grid: { left: 54, right: 24, top: 56, bottom: 34 },
+    xAxis: { type: 'category', data: ['收礼', '送礼', '净差额'], axisLabel: axisStyle, axisTick: { show: false } },
+    yAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
+    series: [
+      { name: '当前周期', type: 'bar', barWidth: 18, data: [compare.current?.received_cents || 0, compare.current?.given_cents || 0, compare.current?.net_cents || 0].map((value) => value / 100), itemStyle: { borderRadius: [8, 8, 0, 0] } },
+      { name: '上一周期', type: 'bar', barWidth: 18, data: [compare.previous?.received_cents || 0, compare.previous?.given_cents || 0, compare.previous?.net_cents || 0].map((value) => value / 100), itemStyle: { borderRadius: [8, 8, 0, 0] } }
+    ]
+  })
+  mountChart(handlerChart.value, {
+    color: ['#6c7fd6', '#35a78a'],
+    graphic: handlerData.length ? undefined : emptyGraphic('暂无经办人统计'),
+    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
+    legend: { top: 4, right: 12, icon: 'circle' },
+    grid: { ...barGrid, top: 42 },
+    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
+    yAxis: { type: 'category', inverse: true, data: handlerData.map((item: any) => item.name), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
+    series: [
+      { name: '收礼', type: 'bar', stack: 'handler', data: handlerData.map((item: any) => item.received_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } },
+      { name: '送礼', type: 'bar', stack: 'handler', data: handlerData.map((item: any) => item.given_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } }
+    ]
   })
 }
 
@@ -1227,8 +1431,8 @@ const dictItemColumns: DataTableColumns<any> = [
     title: '操作',
     key: 'actions',
     render: (row) =>
-      row.is_system
-        ? '系统项'
+      !canEditDictionaryItem(row)
+        ? dictionaryItemReadonlyText(row)
         : h(NSpace, { size: 6 }, () => [
             h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => openEditDict(row) }, () => '编辑'),
             h(NPopconfirm, { onPositiveClick: () => deleteDict(row) }, { trigger: () => h(NButton, { size: 'small', quaternary: true, type: 'error' }, () => '删除'), default: () => '确认删除该字典项？' })
@@ -1259,8 +1463,31 @@ const importJobColumns: DataTableColumns<any> = [
   { title: '更新', key: 'updated_count' },
   { title: '错误', key: 'error_count' },
   { title: '开始时间', key: 'started_at', render: (row) => formatDateTime(row.started_at) },
-  { title: '操作', key: 'actions', render: (row) => (row.status === 'dry_run_ready' ? '可执行' : '-') }
+  {
+    title: '操作',
+    key: 'actions',
+    render: (row) => renderImportJobAction(row)
+  }
 ]
+
+function renderImportJobAction(row: any) {
+  if (row.status === 'dry_run_ready') {
+    return h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => executeImport(row.id) }, () => '执行导入')
+  }
+  if (isImportJobFailed(row)) {
+    return h(NButton, { size: 'small', type: 'error', secondary: true, onClick: () => showImportJobErrors(row) }, () => '查看详情')
+  }
+  return importJobActionText(row)
+}
+
+function isImportJobFailed(row: any) {
+  return row.status === 'dry_run_failed' || row.status === 'failed' || row.status === 'blocked' || row.error_count > 0
+}
+
+function importJobActionText(row: any) {
+  if (row.status === 'success') return '已完成'
+  return '-'
+}
 
 const auditColumns: DataTableColumns<any> = [
   { title: '时间', key: 'created_at', render: (row) => formatDateTime(row.created_at) },
@@ -1272,7 +1499,11 @@ const auditColumns: DataTableColumns<any> = [
   { title: '浏览器', key: 'user_agent' }
 ]
 
-watch(activeView, () => scheduleChartRender())
+watch(activeView, () => {
+  scheduleChartRender()
+  scrollActiveMobileNavIntoView()
+})
+watch(() => menuItems.value.map((item) => item.key).join(','), scrollActiveMobileNavIntoView)
 watch(keyword, () => debouncedContactsSearch())
 
 window.addEventListener('resize', () => chartInstances.forEach((chart) => chart.resize()))
@@ -1281,7 +1512,10 @@ async function bootApp() {
   await loadVersion()
   await loadMe()
 }
-onMounted(bootApp)
+onMounted(async () => {
+  await bootApp()
+  scrollActiveMobileNavIntoView()
+})
 </script>
 
 <template>
@@ -1362,8 +1596,8 @@ onMounted(bootApp)
           </n-button>
         </aside>
 
-        <nav class="mobile-nav">
-          <button v-for="item in menuItems" :key="item.key" :class="{ active: activeView === item.key }" @click="switchView(item.key as ViewKey)">
+        <nav ref="mobileNavRef" class="mobile-nav">
+          <button v-for="item in menuItems" :key="item.key" :data-menu-key="item.key" :class="{ active: activeView === item.key }" @click="switchView(item.key as ViewKey)">
             <component :is="viewIcons[item.key as ViewKey]" :size="18" />
             <span>{{ item.label }}</span>
           </button>
@@ -1543,7 +1777,7 @@ onMounted(bootApp)
               <template #header-extra>
                 <n-space>
                   <n-button v-if="isSuperAdmin" secondary size="small" @click="openCreateDictType"><template #icon><Plus :size="16" /></template>新增字典类型</n-button>
-                  <n-button type="primary" size="small" @click="openCreateDict"><template #icon><Plus :size="16" /></template>新增字典项</n-button>
+                  <n-button type="primary" size="small" :disabled="!writableDictionaryTypes.length" @click="openCreateDict"><template #icon><Plus :size="16" /></template>新增字典项</n-button>
                 </n-space>
               </template>
               <n-data-table
@@ -1569,7 +1803,8 @@ onMounted(bootApp)
                       <div class="item-main"><strong>{{ item.label }}</strong><n-tag size="small">{{ item.is_system ? '系统预置' : '家庭自定义' }}</n-tag></div>
                       <p>值：{{ item.value }}</p>
                       <small>{{ statusText(item.enabled) }} · 排序 {{ item.sort_order }} · {{ formatDateTime(item.updated_at) }}</small>
-                      <div v-if="!item.is_system" class="item-actions"><n-button size="small" secondary @click="openEditDict(item)">编辑</n-button><n-popconfirm @positive-click="deleteDict(item)"><template #trigger><n-button size="small" secondary type="error">删除</n-button></template>确认删除该字典项？</n-popconfirm></div>
+                      <div v-if="canEditDictionaryItem(item)" class="item-actions"><n-button size="small" secondary @click="openEditDict(item)">编辑</n-button><n-popconfirm @positive-click="deleteDict(item)"><template #trigger><n-button size="small" secondary type="error">删除</n-button></template>确认删除该字典项？</n-popconfirm></div>
+                      <small v-else-if="!item.is_system">该类型已关闭家庭自定义，当前项只读</small>
                     </article>
                   </div>
                 </n-collapse-item>
@@ -1593,10 +1828,30 @@ onMounted(bootApp)
               <article><span>记录总数</span><strong>{{ stats?.cards?.record_count || 0 }}</strong></article>
             </div>
             <div class="chart-grid">
-              <n-card :title="trendChartTitle" size="small"><div ref="trendChart" class="chart"></div></n-card>
-              <n-card title="事项占比" size="small"><div ref="occasionChart" class="chart"></div></n-card>
-              <n-card title="对象 Top 10" size="small"><div ref="contactChart" class="chart"></div></n-card>
-              <n-card title="关系统计" size="small"><div ref="relationChart" class="chart"></div></n-card>
+              <n-card :title="trendChartTitle" size="small" class="chart-card chart-card-priority"><div ref="trendChart" class="chart"></div></n-card>
+              <n-card title="回礼状态" size="small" class="chart-card chart-card-priority"><div ref="reciprocityChart" class="chart"></div></n-card>
+              <n-card title="待回礼对象 Top 10" size="small" class="chart-card chart-card-priority">
+                <div class="ranking-list ranking-list-priority">
+                  <article v-for="item in stats?.pending_top10 || []" :key="item.name">
+                    <span>{{ item.name }}</span>
+                    <small>{{ item.count }} 笔</small>
+                    <strong>{{ moneyCompact(item.amount_cents) }}</strong>
+                  </article>
+                  <n-empty v-if="!(stats?.pending_top10 || []).length" description="暂无待回礼对象" />
+                </div>
+              </n-card>
+              <n-card title="收送差额排行" size="small" class="chart-card chart-card-priority"><div ref="balanceChart" class="chart"></div></n-card>
+              <n-card title="对象 Top 10" size="small" class="chart-card"><div ref="contactChart" class="chart"></div></n-card>
+              <n-card title="周期对比" size="small" class="chart-card">
+                <p class="chart-subtitle">{{ periodCompareRangeText }}</p>
+                <div ref="periodCompareChart" class="chart chart-with-subtitle"></div>
+              </n-card>
+              <n-card title="事项类型趋势" size="small" class="chart-card"><div ref="occasionTrendChart" class="chart"></div></n-card>
+              <n-card title="事项收送对比" size="small" class="chart-card"><div ref="occasionMatrixChart" class="chart"></div></n-card>
+              <n-card title="事项占比" size="small" class="chart-card"><div ref="occasionChart" class="chart"></div></n-card>
+              <n-card title="关系收送矩阵" size="small" class="chart-card"><div ref="relationMatrixChart" class="chart"></div></n-card>
+              <n-card title="关系统计" size="small" class="chart-card"><div ref="relationChart" class="chart"></div></n-card>
+              <n-card title="经办人统计" size="small" class="chart-card"><div ref="handlerChart" class="chart"></div></n-card>
             </div>
           </section>
 
@@ -1628,14 +1883,13 @@ onMounted(bootApp)
 
           <section v-show="activeView === 'imports'" key="imports-view" class="view-stack">
             <n-card title="导入恢复" size="small">
-              <template #header-extra>
-                <n-space>
-                  <n-button size="small" @click="runAction(downloadImportTemplate)"><template #icon><Download :size="16" /></template>下载模板</n-button>
-                  <n-button type="primary" size="small" @click="showImportModal = true"><template #icon><Upload :size="16" /></template>上传并校验</n-button>
-                </n-space>
-              </template>
-              <n-data-table v-if="importErrors.length" class="desktop-table" :data="importErrors" :columns="importErrorColumns" />
-              <div v-if="importErrors.length" class="mobile-list">
+              <div class="toolbar import-toolbar">
+                <n-button size="small" @click="runAction(downloadImportTemplate)"><template #icon><Download :size="16" /></template>下载手工模板</n-button>
+                <n-button type="primary" size="small" @click="openImportModal('manual')"><template #icon><Upload :size="16" /></template>手工导入</n-button>
+                <n-button size="small" @click="openImportModal('backup')"><template #icon><ArchiveRestore :size="16" /></template>备份恢复</n-button>
+              </div>
+              <n-data-table v-if="importErrors.length" class="desktop-table import-error-table" :data="importErrors" :columns="importErrorColumns" />
+              <div v-if="importErrors.length" class="mobile-list import-error-list">
                 <article v-for="error in importErrors" :key="`${error.sheet_name}-${error.row_number}-${error.field_name}`" class="mobile-item">
                   <div class="item-main"><strong>{{ error.sheet_name }}</strong><n-tag size="small" type="error">第 {{ error.row_number }} 行</n-tag></div>
                   <p>{{ error.field_name }}</p>
@@ -1652,10 +1906,8 @@ onMounted(bootApp)
                   <p>新增 {{ job.created_count }} · 更新 {{ job.updated_count }} · 错误 {{ job.error_count }}</p>
                   <small>{{ formatDateTime(job.started_at) }}</small>
                   <div v-if="job.status === 'dry_run_ready'" class="item-actions"><n-button size="small" type="primary" secondary @click="runAction(() => executeImport(job.id))">执行导入</n-button></div>
+                  <div v-else-if="isImportJobFailed(job)" class="item-actions"><n-button size="small" type="error" secondary @click="runAction(() => showImportJobErrors(job))">查看详情</n-button></div>
                 </article>
-              </div>
-              <div class="job-actions">
-                <n-button v-for="job in importJobs.filter((item) => item.status === 'dry_run_ready')" :key="job.id" size="small" type="primary" @click="runAction(() => executeImport(job.id))">执行 {{ job.source_file_name }}</n-button>
               </div>
             </n-card>
           </section>
@@ -1784,7 +2036,7 @@ onMounted(bootApp)
 
           <n-modal v-model:show="showDictModal" preset="card" :title="editingDictId ? '编辑字典项' : '新增字典项'" class="form-modal">
             <n-form label-placement="top">
-              <n-form-item label="字典类型"><n-select v-model:value="dictForm.type_id" :options="dictionaryTypes.map((item) => ({ label: item.name, value: item.id }))" placeholder="请选择字典类型" /></n-form-item>
+              <n-form-item label="字典类型"><n-select v-model:value="dictForm.type_id" :disabled="Boolean(editingDictId)" :options="dictionaryTypeOptions" placeholder="请选择字典类型" /></n-form-item>
               <n-form-item label="标签"><n-input v-model:value="dictForm.label" placeholder="请输入显示名称" /></n-form-item>
               <n-form-item label="值"><n-input v-model:value="dictForm.value" placeholder="请输入实际保存值，系统会按原样保存" /></n-form-item>
               <n-form-item label="排序"><n-input-number v-model:value="dictForm.sort_order" placeholder="请输入排序值" /></n-form-item>
@@ -1804,8 +2056,9 @@ onMounted(bootApp)
             </n-form>
           </n-modal>
 
-          <n-modal v-model:show="showImportModal" preset="card" title="上传导入文件" class="form-modal">
-            <p class="modal-hint">请先上传 Excel，系统会先做导入校验，不会立即写入数据。金额可填写“金额(元)”；如文件中有“金额(分)”且有值，会优先按分导入。</p>
+          <n-modal v-model:show="showImportModal" preset="card" :title="importMode === 'manual' ? '手工导入' : '备份恢复'" class="form-modal">
+            <p v-if="importMode === 'manual'" class="modal-hint">适合普通录入，只需要填写往来流水和可选的往来对象信息。系统会先校验，不会立即写入数据。</p>
+            <p v-else class="modal-hint">仅用于恢复系统导出的完整备份文件，会识别编号、字典和家庭成员等高级字段。系统会先校验，不会立即写入数据。</p>
             <n-upload :max="1" accept=".xlsx" @update:file-list="(files) => importFile = files[0] || null">
               <n-button><template #icon><Upload :size="17" /></template>选择 Excel 文件</n-button>
             </n-upload>

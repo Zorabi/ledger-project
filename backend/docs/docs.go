@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.2.1.0"
+        "version": "1.2.2.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -2996,8 +2996,8 @@ const docTemplate = `{
                 "tags": [
                     "导入恢复"
                 ],
-                "summary": "下载导入模板",
-                "description": "下载可用于新增数据或恢复备份的 Excel 模板",
+                "summary": "下载手工导入模板",
+                "description": "下载面向普通用户的手工导入 Excel 模板，只包含业务可理解的往来流水和往来对象字段",
                 "produces": [
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 ],
@@ -3042,8 +3042,8 @@ const docTemplate = `{
                 "tags": [
                     "导入恢复"
                 ],
-                "summary": "上传 Excel 并执行导入校验",
-                "description": "上传 Excel 并执行导入校验，校验阶段不写入业务数据",
+                "summary": "上传完整备份并执行恢复校验",
+                "description": "上传系统导出的完整备份 Excel 并执行恢复校验，校验阶段不写入业务数据",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -3337,6 +3337,192 @@ const docTemplate = `{
                         }
                     },
                     "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/imports/manual/template": {
+            "get": {
+                "tags": [
+                    "导入恢复"
+                ],
+                "summary": "下载手工导入模板",
+                "description": "下载面向普通用户的手工导入 Excel 模板，只包含业务可理解的往来流水和往来对象字段",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel 文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/imports/manual/dry-run": {
+            "post": {
+                "tags": [
+                    "导入恢复"
+                ],
+                "summary": "上传手工导入文件并执行校验",
+                "description": "上传手工导入 Excel 并执行校验，只解析往来流水和往来对象，校验阶段不写入业务数据",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "file",
+                        "in": "formData",
+                        "type": "file",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/ImportJob"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/imports/backup/dry-run": {
+            "post": {
+                "tags": [
+                    "导入恢复"
+                ],
+                "summary": "上传完整备份并执行恢复校验",
+                "description": "上传系统导出的完整备份 Excel 并执行恢复校验，校验阶段不写入业务数据",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "file",
+                        "in": "formData",
+                        "type": "file",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/ImportJob"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
                         "description": "错误响应",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
@@ -4356,12 +4542,11 @@ const docTemplate = `{
             }
         }
     }
-}
-`
+}`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.2.1.0",
+	Version:          "1.2.2.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},
