@@ -28,7 +28,7 @@ import StatsView from './views/StatsView.vue'
 import UsersView from './views/UsersView.vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.1.1'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.1.2'
 const FAMILY_CACHE_KEY = 'ledger_families_cache'
 const SELECTED_FAMILY_KEY = 'selected_family_id'
 

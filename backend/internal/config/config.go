@@ -96,7 +96,7 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.3.1.1")
+	v.SetDefault("app.version", "1.3.1.2")
 	v.SetDefault("database.postgres.auto_create", true)
 	v.SetDefault("database.postgres.auto_migrate", true)
 	v.SetDefault("jwt.signing_method", "HS256")
