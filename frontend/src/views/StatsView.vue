@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Search } from 'lucide-vue-next'
-import StatsCharts from '../StatsCharts.vue'
+import StatsCharts from '../components/StatsCharts.vue'
 
 defineProps<{
   active: boolean

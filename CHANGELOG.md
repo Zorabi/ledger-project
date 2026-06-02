@@ -2,6 +2,13 @@
 
 本项目遵循面向产品交付的变更记录格式，按功能域归档重要变更。
 
+## v1.3.1.0 - 2026-06-02
+
+### Changed
+
+- 将前端页面级视图从 `frontend/src/components/views` 调整到 `frontend/src/views`，使 `components` 只保留可复用组件。
+- 更新应用展示版本为 `1.3.1.0`。
+
 ## v1.3.0.0 - 2026-06-02
 
 ### Added
