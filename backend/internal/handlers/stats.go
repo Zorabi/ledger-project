@@ -42,6 +42,8 @@ func (h *AppHandler) StatsOverview(c *gin.Context) {
 		"relation_matrix":   h.relationDirectionStats(auth, familyID, startDate, endDate),
 		"period_compare":    h.periodCompare(auth, familyID, startDate, endDate),
 		"handler_stats":     h.handlerStats(auth, familyID, startDate, endDate),
+		"owner_stats":       h.ownerStats(auth, familyID, startDate, endDate),
+		"owner_contacts":    h.ownerContactStats(auth, familyID),
 	})
 }
 
@@ -358,6 +360,50 @@ func (h *AppHandler) handlerStats(auth middleware.AuthUser, familyID string, sta
 	out := make([]gin.H, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, gin.H{"name": row.Name, "received_cents": row.Received, "given_cents": row.Given, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) ownerStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	var rows []struct {
+		Name     string
+		Received int64
+		Given    int64
+		Count    int64
+	}
+	q := scopeGiftRecords(h.db.Model(&models.GiftRecord{}), auth, familyID)
+	q = applyGiftRecordDateRange(q, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select(ownerNameExpr+" AS name, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS received, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS given, COUNT(*) AS count", models.DirectionIn, models.DirectionOut).
+		Group(ownerNameExpr).Order("COALESCE(SUM(gift_records.amount_cents),0) desc").Limit(10).Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "received_cents": row.Received, "given_cents": row.Given, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) ownerContactStats(auth middleware.AuthUser, familyID string) []gin.H {
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	var rows []struct {
+		Name  string
+		Count int64
+	}
+	q := h.db.Model(&models.Contact{})
+	if auth.Role == models.RoleSuperAdmin && familyID != "" {
+		q = q.Where("contacts.family_id = ?", familyID)
+	}
+	if auth.Role != models.RoleSuperAdmin && auth.FamilyID != nil {
+		q = q.Where("contacts.family_id = ?", *auth.FamilyID)
+	}
+	q.Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select(ownerNameExpr + " AS name, COUNT(*) AS count").
+		Group(ownerNameExpr).Order("count desc").Limit(10).Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "count": row.Count})
 	}
 	return out
 }

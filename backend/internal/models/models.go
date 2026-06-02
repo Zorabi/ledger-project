@@ -161,6 +161,8 @@ type DictionaryItem struct {
 type Contact struct {
 	ID           uint           `json:"id" gorm:"primaryKey"`
 	FamilyID     uint           `json:"family_id" gorm:"not null;index"`
+	OwnerUserID  *uint          `json:"owner_user_id" gorm:"index"`
+	OwnerUser    *User          `json:"owner_user,omitempty"`
 	Name         string         `json:"name" gorm:"size:120;not null;index"`
 	ContactType  string         `json:"contact_type" gorm:"size:80;not null;index"`
 	RelationType string         `json:"relation_type" gorm:"size:80;not null;index"`

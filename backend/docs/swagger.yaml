@@ -2,7 +2,7 @@ swagger: 2.0
 info:
   description: "家庭租户礼尚往来记录系统后端接口。"
   title: "礼尚往来 API"
-  version: "1.2.2.0"
+  version: "1.3.0.0"
 host: localhost:8080
 basePath: /api/v1
 schemes:
@@ -2715,6 +2715,8 @@ definitions:
     properties:
       name:
         type: string
+      owner_user_id:
+        type: integer
       contact_type:
         type: string
       relation_type:
@@ -2884,6 +2886,10 @@ definitions:
         type: integer
       family_id:
         type: integer
+      owner_user_id:
+        type: integer
+      owner_user:
+        "$ref": "#/definitions/User"
       name:
         type: string
       contact_type:

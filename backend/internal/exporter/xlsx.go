@@ -28,7 +28,7 @@ func GenerateFamilyBackup(db *gorm.DB, familyID uint) (*FamilyBackup, error) {
 	var records []models.GiftRecord
 	var dictionaries []models.DictionaryItem
 	var users []models.User
-	if err := db.Where("family_id = ?", familyID).Order("id asc").Find(&contacts).Error; err != nil {
+	if err := db.Preload("OwnerUser").Where("family_id = ?", familyID).Order("id asc").Find(&contacts).Error; err != nil {
 		return nil, err
 	}
 	if err := db.Preload("Contact").Where("family_id = ?", familyID).Order("id asc").Find(&records).Error; err != nil {
@@ -95,6 +95,7 @@ func importRecordTemplateRows() [][]string {
 func importContactTemplateRows() [][]string {
 	return [][]string{{
 		"名称",
+		"归属成员",
 		"对象类型",
 		"关系类型",
 		"手机号",
@@ -107,7 +108,7 @@ func importGuideRows() [][]string {
 	return [][]string{
 		{"说明项", "怎么填写"},
 		{"推荐用法", "只填写“往来流水”即可。系统会根据对象名称自动匹配已有往来对象；匹配不到时会自动创建。"},
-		{"往来对象", "如果想提前维护手机号、地址、关系等信息，可以填写“往来对象”工作表；不填也可以直接导入流水。"},
+		{"往来对象", "如果想提前维护手机号、地址、归属成员、关系等信息，可以填写“往来对象”工作表；不填也可以直接导入流水。"},
 		{"往来方向", "填写“收礼”或“送礼”，也可以填写“我家收礼”或“我家送礼”。"},
 		{"金额", "填写元，例如 200、500.50。不要填写人民币符号。"},
 		{"发生日期", "按 yyyy-MM-dd 填写，例如 2026-05-29。"},
@@ -121,7 +122,7 @@ func importExampleRows() [][]string {
 		{"工作表", "对象名称/名称", "事项类型", "往来方向", "金额(元)", "发生日期", "经办人", "说明"},
 		{"往来流水", "张三", "婚礼", "收礼", "500", "2026-05-29", "董翔", "收到礼金"},
 		{"往来流水", "李四", "满月", "送礼", "300", "2026-05-30", "董翔", "送出礼金"},
-		{"往来对象", "张三", "", "", "", "", "", "对象类型、关系类型、手机号、地址可按需补充"},
+		{"往来对象", "张三", "", "", "", "", "", "对象类型、归属成员、关系类型、手机号、地址可按需补充"},
 	}
 }
 
@@ -240,7 +241,17 @@ func giftRecordRows(records []models.GiftRecord) [][]string {
 func contactRows(contacts []models.Contact) [][]string {
 	rows := [][]string{contactHeader()}
 	for _, c := range contacts {
-		rows = append(rows, []string{itoa(c.ID), c.Name, c.ContactType, c.RelationType, c.Phone, c.Address, c.Status, c.Remark})
+		ownerUserID, ownerUserName := "", ""
+		if c.OwnerUserID != nil {
+			ownerUserID = itoa(*c.OwnerUserID)
+		}
+		if c.OwnerUser != nil {
+			ownerUserName = c.OwnerUser.DisplayName
+			if ownerUserName == "" {
+				ownerUserName = c.OwnerUser.Username
+			}
+		}
+		rows = append(rows, []string{itoa(c.ID), ownerUserID, ownerUserName, c.Name, c.ContactType, c.RelationType, c.Phone, c.Address, c.Status, c.Remark})
 	}
 	return rows
 }
@@ -290,7 +301,7 @@ func giftRecordHeader() []string {
 }
 
 func contactHeader() []string {
-	return []string{"对象编号", "名称", "对象类型", "关系类型", "手机号", "地址", "状态", "备注"}
+	return []string{"对象编号", "归属成员编号", "归属成员", "名称", "对象类型", "关系类型", "手机号", "地址", "状态", "备注"}
 }
 
 func dictionaryHeader() []string {

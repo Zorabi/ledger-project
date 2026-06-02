@@ -334,8 +334,14 @@ func applyContacts(tx *gorm.DB, familyID uint, rows []map[string]string, operato
 			continue
 		}
 		id := parseID(row["对象编号"])
+		ownerUserID, err := resolveOwnerUserID(tx, familyID, row)
+		if err != nil {
+			addError(result, "往来对象", i+2, "归属成员", err.Error(), row)
+			continue
+		}
 		contact := models.Contact{
 			FamilyID:     familyID,
+			OwnerUserID:  ownerUserID,
 			Name:         row["名称"],
 			ContactType:  fallback(row["对象类型"], "个人"),
 			RelationType: fallback(row["关系类型"], "其他"),
@@ -456,6 +462,28 @@ func exists[T any](db *gorm.DB, model *T, familyID uint, id uint) bool {
 	var count int64
 	db.Model(model).Where("id = ? AND family_id = ?", id, familyID).Count(&count)
 	return count > 0
+}
+
+func resolveOwnerUserID(db *gorm.DB, familyID uint, row map[string]string) (*uint, error) {
+	if id := parseID(row["归属成员编号"]); id > 0 {
+		if exists(db, &models.User{}, familyID, id) {
+			return &id, nil
+		}
+		return nil, errors.New("归属成员编号不存在")
+	}
+	name := strings.TrimSpace(row["归属成员"])
+	if name == "" {
+		return nil, nil
+	}
+	var user models.User
+	err := db.Where("family_id = ? AND (display_name = ? OR username = ?)", familyID, name, name).Limit(1).Find(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	if user.ID == 0 {
+		return nil, errors.New("归属成员不存在")
+	}
+	return &user.ID, nil
 }
 
 func contactNameExists(db *gorm.DB, familyID uint, name string) bool {

@@ -15,7 +15,7 @@ func (h *AppHandler) ListContacts(c *gin.Context) {
 	if !okAuth {
 		return
 	}
-	q := h.db.Model(&models.Contact{})
+	q := h.db.Preload("OwnerUser").Model(&models.Contact{})
 	q = scopeFamily(q, auth, c.Query("family_id"))
 	if keyword := c.Query("keyword"); keyword != "" {
 		q = q.Where("name ILIKE ? OR phone ILIKE ?", "%"+keyword+"%", "%"+keyword+"%")
@@ -38,6 +38,10 @@ func (h *AppHandler) CreateContact(c *gin.Context) {
 	}
 	req.CreatedBy = auth.UserID
 	req.Status = defaultString(req.Status, models.StatusEnabled)
+	if !h.userBelongsToFamily(req.OwnerUserID, req.FamilyID) {
+		fail(c, http.StatusBadRequest, "归属成员不属于当前家庭")
+		return
+	}
 	if err := h.db.Create(&req).Error; err != nil {
 		fail(c, http.StatusBadRequest, err.Error())
 		return
@@ -49,7 +53,7 @@ func (h *AppHandler) CreateContact(c *gin.Context) {
 func (h *AppHandler) GetContact(c *gin.Context) {
 	auth, _ := middleware.RequireFamily(c)
 	var item models.Contact
-	if !scopedFamilyRecord(c, h.db, auth, &item) {
+	if !scopedFamilyRecord(c, h.db.Preload("OwnerUser"), auth, &item) {
 		return
 	}
 	var pending []models.GiftRecord
@@ -67,7 +71,11 @@ func (h *AppHandler) UpdateContact(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
-	h.db.Model(&item).Updates(map[string]any{"name": req.Name, "contact_type": req.ContactType, "relation_type": req.RelationType, "phone": req.Phone, "address": req.Address, "remark": req.Remark, "status": req.Status})
+	if !h.userBelongsToFamily(req.OwnerUserID, item.FamilyID) {
+		fail(c, http.StatusBadRequest, "归属成员不属于当前家庭")
+		return
+	}
+	h.db.Model(&item).Updates(map[string]any{"owner_user_id": req.OwnerUserID, "name": req.Name, "contact_type": req.ContactType, "relation_type": req.RelationType, "phone": req.Phone, "address": req.Address, "remark": req.Remark, "status": req.Status})
 	h.audit(c, &item.FamilyID, &auth.UserID, "update_contact", "contact", strconv.Itoa(int(item.ID)), true, nil)
 	ok(c, item)
 }
@@ -86,6 +94,15 @@ func (h *AppHandler) DeleteContact(c *gin.Context) {
 func (h *AppHandler) contactBelongsToFamily(contactID uint, familyID uint) bool {
 	var count int64
 	h.db.Model(&models.Contact{}).Where("id = ? AND family_id = ?", contactID, familyID).Count(&count)
+	return count > 0
+}
+
+func (h *AppHandler) userBelongsToFamily(userID *uint, familyID uint) bool {
+	if userID == nil || *userID == 0 {
+		return true
+	}
+	var count int64
+	h.db.Model(&models.User{}).Where("id = ? AND family_id = ?", *userID, familyID).Count(&count)
 	return count > 0
 }
 

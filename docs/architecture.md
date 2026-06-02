@@ -133,6 +133,7 @@ ledger-project/
 
 - `id`
 - `family_id`
+- `owner_user_id`：可空，指向本家庭成员，用于标识该往来对象主要属于家庭中的哪位成员。
 - `name`
 - `contact_type`
 - `relation_type`
@@ -307,6 +308,7 @@ ledger-project/
 - 列表接口返回 `{ total, list, page, page_size }`。
 - 家庭级接口必须从登录上下文推导租户；`super_admin` 代家庭操作时通过 `family_id` 查询参数指定目标家庭。
 - `GET /stats/overview` 支持 `start_date`、`end_date` 和 `family_id` 查询参数，并返回 `trend_granularity`。趋势数据在结果跨度不超过 90 天时按日聚合，否则按月聚合。
+- 统计结果包含对象归属成员维度 `owner_stats` 和 `owner_contacts`。`owner_stats` 按往来流水金额归集收礼、送礼和记录数；`owner_contacts` 按往来对象数量展示成员关系分布；未维护归属成员的对象统一归为“未指定”。
 
 ## 前端架构建议
 

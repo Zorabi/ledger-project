@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.2.2.0"
+        "version": "1.3.0.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -3991,6 +3991,9 @@ const docTemplate = `{
                         "enabled",
                         "disabled"
                     ]
+                },
+                "owner_user_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -4243,6 +4246,12 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "owner_user": {
+                    "$ref": "#/definitions/User"
                 }
             }
         },
@@ -4546,7 +4555,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.2.2.0",
+	Version:          "1.3.0.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

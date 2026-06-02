@@ -1,18 +1,14 @@
 <script setup lang="ts">
-import { computed, h, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import { computed, h, markRaw, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
   Activity,
   ArchiveRestore,
   BookOpen,
   Contact,
   DatabaseBackup,
-  Download,
   FileSpreadsheet,
   KeyRound,
   LogOut,
-  Plus,
-  RefreshCw,
   Search,
   Settings,
   ShieldCheck,
@@ -20,9 +16,19 @@ import {
   Users
 } from 'lucide-vue-next'
 import { createDiscreteApi, dateZhCN, NButton, NPopconfirm, NSpace, type DataTableColumns, type UploadFileInfo, zhCN } from 'naive-ui'
+import AuditView from './components/views/AuditView.vue'
+import BackupView from './components/views/BackupView.vue'
+import ContactsView from './components/views/ContactsView.vue'
+import DashboardView from './components/views/DashboardView.vue'
+import DictionariesView from './components/views/DictionariesView.vue'
+import FamiliesView from './components/views/FamiliesView.vue'
+import ImportsView from './components/views/ImportsView.vue'
+import RecordsView from './components/views/RecordsView.vue'
+import StatsView from './components/views/StatsView.vue'
+import UsersView from './components/views/UsersView.vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.2.0'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.0.0'
 const FAMILY_CACHE_KEY = 'ledger_families_cache'
 const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -90,12 +96,12 @@ const editingRecordId = ref<number | null>(null)
 const editingDictId = ref<number | null>(null)
 const editingDictTypeId = ref<number | null>(null)
 
-const loginForm = reactive({ username: 'admin', password: 'ChangeMe123!' })
+const loginForm = reactive({ username: '', password: '' })
 const passwordForm = reactive({ old_password: '', new_password: '' })
 const familyForm = reactive({ name: '', contact_name: '', contact_email: '', remark: '', admin_mode: 'existing', admin_user_id: null as number | null, admin_username: '', admin_display_name: '', admin_email: '', admin_password: '' })
 const userForm = reactive({ username: '', display_name: '', email: '', password: '', role: 'member', family_id: null as number | null })
 const resetPasswordForm = reactive({ password: '' })
-const contactForm = reactive({ name: '', contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
+const contactForm = reactive({ name: '', owner_user_id: null as number | null, contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
 const recordForm = reactive({ contact_id: null as number | null, occasion_type: '', direction: 'in', amount_yuan: 200, gift_description: '', occurred_on: new Date().toISOString().slice(0, 10), handled_by: '', reciprocity_status: 'pending', related_record_id: null as number | null, remark: '' })
 const dictForm = reactive({ type_id: null as number | null, label: '', value: '', sort_order: 0, enabled: true })
 const dictTypeForm = reactive({ code: '', name: '', description: '', allow_family_custom: true, sort_order: 0, enabled: true })
@@ -117,19 +123,7 @@ const backupConfig = ref<any>(null)
 const recordQuery = reactive({ page: 1, page_size: 10, total: 0, contact_id: null as number | null, direction: null as string | null, occasion_type: null as string | null, reciprocity_status: null as string | null, start_date: null as string | null, end_date: null as string | null })
 const statsQuery = reactive({ range: 'all', start_date: null as string | null, end_date: null as string | null })
 const auditQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', action: '', success: null as boolean | null })
-const trendChart = ref<HTMLElement | null>(null)
-const occasionChart = ref<HTMLElement | null>(null)
-const contactChart = ref<HTMLElement | null>(null)
-const relationChart = ref<HTMLElement | null>(null)
-const reciprocityChart = ref<HTMLElement | null>(null)
-const balanceChart = ref<HTMLElement | null>(null)
-const occasionTrendChart = ref<HTMLElement | null>(null)
-const occasionMatrixChart = ref<HTMLElement | null>(null)
-const relationMatrixChart = ref<HTMLElement | null>(null)
-const periodCompareChart = ref<HTMLElement | null>(null)
-const handlerChart = ref<HTMLElement | null>(null)
 const mobileNavRef = ref<HTMLElement | null>(null)
-let chartInstances: echarts.ECharts[] = []
 const latestRequestSeq: Record<string, number> = {}
 let viewLoadSeq = 0
 
@@ -201,13 +195,6 @@ const dictionaryTypeOptions = computed(() =>
 const contactTypeOptions = computed(() => dictOptions('contact_type'))
 const relationTypeOptions = computed(() => dictOptions('relation_type'))
 const occasionTypeOptions = computed(() => dictOptions('occasion_type'))
-const trendChartTitle = computed(() => stats.value?.trend_granularity === 'day' ? '每日收送趋势' : '月度收送趋势')
-const periodCompareRangeText = computed(() => {
-  const current = stats.value?.period_compare?.current_range
-  const previous = stats.value?.period_compare?.previous_range
-  if (!current?.start_date || !current?.end_date || !previous?.start_date || !previous?.end_date) return '当前周期与上一等长周期'
-  return `当前 ${current.start_date} 至 ${current.end_date}，对比 ${previous.start_date} 至 ${previous.end_date}`
-})
 const relatedRecordOptions = computed(() =>
   records.value
     .filter((item) => item.id !== editingRecordId.value && (!recordForm.contact_id || item.contact_id === recordForm.contact_id) && item.direction !== recordForm.direction)
@@ -225,6 +212,11 @@ const handlerOptions = computed(() =>
   users.value
     .filter((item) => item.status !== 'disabled')
     .map((item) => ({ label: item.display_name || item.username, value: item.display_name || item.username }))
+)
+const familyMemberOptions = computed(() =>
+  users.value
+    .filter((item) => item.status !== 'disabled' && item.role !== 'super_admin' && (!isSuperAdmin.value || !currentFamilyId.value || item.family_id === currentFamilyId.value))
+    .map((item) => ({ label: `${item.display_name || item.username}（${statusText(item.role)}）`, value: item.id }))
 )
 
 const viewIcons = {
@@ -422,7 +414,6 @@ async function loadInitialData() {
     localStorage.setItem('active_view', activeView.value)
   }
   await loadView(activeView.value, true)
-  scheduleChartRender()
 }
 
 function clearLoadedViews() {
@@ -450,7 +441,7 @@ async function loadView(view: ViewKey, force = false) {
     } else if (view === 'users') {
       await loadUsers()
     } else if (view === 'contacts') {
-      await Promise.all([loadContacts(), loadDictionaries()])
+      await Promise.all([loadContacts(), loadDictionaries(), loadUsers()])
     } else if (view === 'records') {
       await Promise.all([loadContacts(), loadRecords(), loadDictionaries(), loadUsers()])
     } else if (view === 'dictionaries') {
@@ -487,8 +478,6 @@ async function switchView(view: ViewKey) {
     localStorage.setItem('active_view', view)
     window.scrollTo({ top: 0, left: 0 })
     debouncedLoadActiveView(true)
-    await nextTick()
-    scheduleChartRender()
     return
   }
   const loaded = await loadView(view)
@@ -496,8 +485,6 @@ async function switchView(view: ViewKey) {
   activeView.value = view
   localStorage.setItem('active_view', view)
   window.scrollTo({ top: 0, left: 0 })
-  await nextTick()
-  scheduleChartRender()
 }
 
 function scrollActiveMobileNavIntoView() {
@@ -517,7 +504,7 @@ async function handleFamilyChange() {
 }
 
 const debouncedLoadActiveView = debounce((force = false) => {
-  loadView(activeView.value, force).then(scheduleChartRender)
+  loadView(activeView.value, force)
 }, 180)
 
 async function loadFamilies() {
@@ -578,7 +565,6 @@ function appendStatsQueryParams(params: URLSearchParams) {
 
 async function applyStatsQuery() {
   await Promise.all([loadStats(), activeView.value === 'dashboard' ? loadDashboardRecords() : Promise.resolve()])
-  scheduleChartRender()
 }
 
 function setStatsRange(range: string) {
@@ -718,7 +704,7 @@ async function createContact() {
     await api('/contacts', { method: 'POST', body: JSON.stringify(payload) })
     message.success('对象已保存')
   }
-  Object.assign(contactForm, { name: '', contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
+  Object.assign(contactForm, { name: '', owner_user_id: null, contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
   editingContactId.value = null
   showContactModal.value = false
   await Promise.all([loadContacts(), loadRecords(), loadStats()])
@@ -929,13 +915,13 @@ async function updateFamilyStatus(row: any) {
 
 function openCreateContact() {
   editingContactId.value = null
-  Object.assign(contactForm, { name: '', contact_type: contactTypeOptions.value[0]?.value || '', relation_type: relationTypeOptions.value[0]?.value || '', phone: '', address: '', remark: '', status: 'enabled' })
+  Object.assign(contactForm, { name: '', owner_user_id: null, contact_type: contactTypeOptions.value[0]?.value || '', relation_type: relationTypeOptions.value[0]?.value || '', phone: '', address: '', remark: '', status: 'enabled' })
   showContactModal.value = true
 }
 
 function openEditContact(row: any) {
   editingContactId.value = row.id
-  Object.assign(contactForm, { name: row.name, contact_type: row.contact_type, relation_type: row.relation_type, phone: row.phone, address: row.address, remark: row.remark || '', status: row.status || 'enabled' })
+  Object.assign(contactForm, { name: row.name, owner_user_id: row.owner_user_id || null, contact_type: row.contact_type, relation_type: row.relation_type, phone: row.phone, address: row.address, remark: row.remark || '', status: row.status || 'enabled' })
   showContactModal.value = true
 }
 
@@ -1126,214 +1112,6 @@ function formatDate(value?: string) {
   return formatDateTime(value).slice(0, 10)
 }
 
-function renderCharts() {
-  chartInstances.forEach((chart) => chart.dispose())
-  chartInstances = []
-  if (!stats.value) return
-  const trendRows = stats.value.monthly_trend || []
-  const trendPeriods = Array.from(new Set(trendRows.map((item: any) => item.period || item.month))).sort()
-  const amountBy = (direction: string) =>
-    trendPeriods.map((period) => (trendRows.find((item: any) => (item.period || item.month) === period && item.direction === direction)?.amount_cents || 0) / 100)
-  const occasionData = (stats.value.occasion_pie || []).map((item: any) => ({ name: dictionaryLabel('occasion_type', item.name), value: item.amount_cents / 100 }))
-  const contactData = stats.value.contact_top10 || []
-  const relationData = (stats.value.relation_stats || []).map((item: any) => ({ ...item, label: dictionaryLabel('relation_type', item.name) }))
-  const reciprocityData = (stats.value.reciprocity_stats || []).map((item: any) => ({ name: statusText(item.status), value: item.amount_cents / 100, count: item.count }))
-  const balanceData = stats.value.balance_top10 || []
-  const occasionTrendRows = stats.value.occasion_trend || []
-  const occasionTrendPeriods = Array.from(new Set(occasionTrendRows.map((item: any) => item.period))).sort()
-  const occasionTrendNames = Array.from(new Set(occasionTrendRows.map((item: any) => item.name))).slice(0, 6)
-  const occasionMatrixData = (stats.value.occasion_matrix || []).map((item: any) => ({ ...item, label: dictionaryLabel('occasion_type', item.name) }))
-  const relationMatrixData = (stats.value.relation_matrix || []).map((item: any) => ({ ...item, label: dictionaryLabel('relation_type', item.name) }))
-  const compare = stats.value.period_compare || {}
-  const handlerData = stats.value.handler_stats || []
-  const axisStyle = { color: '#6a7880', fontSize: 11 }
-  const splitLine = { lineStyle: { color: 'rgba(111, 130, 120, 0.12)' } }
-  const isMobileChart = window.innerWidth <= 560
-  const barGrid = { left: isMobileChart ? 74 : 84, right: isMobileChart ? 78 : 74, bottom: 28, top: 18 }
-  const barValueLabel = { show: true, position: 'right', distance: 8, formatter: ({ value }: any) => `¥${Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`, color: '#4a5960' }
-  const richTooltip = { backgroundColor: 'rgba(15, 32, 39, 0.92)', borderWidth: 0, textStyle: { color: '#f7fbf9' }, extraCssText: 'box-shadow:0 12px 28px rgba(10,24,31,.18);border-radius:10px;' }
-  const emptyGraphic = (text: string) => ({
-    type: 'text',
-    left: 'center',
-    top: 'middle',
-    style: { text, fill: '#8a989f', fontSize: 14, fontWeight: 600 }
-  })
-  mountChart(trendChart.value, {
-    color: ['#19a66b', '#f59f35'],
-    tooltip: { ...richTooltip, trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    legend: { top: 6, right: 12, itemWidth: 10, itemHeight: 10 },
-    grid: { left: 54, right: 24, top: 54, bottom: 34 },
-    xAxis: { type: 'category', boundaryGap: false, data: trendPeriods, axisLabel: { ...axisStyle, formatter: (value: string) => stats.value?.trend_granularity === 'day' ? value.slice(5) : value }, axisTick: { show: false }, axisLine: { lineStyle: { color: 'rgba(82, 104, 96, 0.22)' } } },
-    yAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
-    series: [
-      { name: '我家收礼', type: 'line', smooth: true, symbolSize: 7, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(25,166,107,0.28)' }, { offset: 1, color: 'rgba(25,166,107,0.02)' }]) }, data: amountBy('in') },
-      { name: '我家送礼', type: 'line', smooth: true, symbolSize: 7, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(245,159,53,0.24)' }, { offset: 1, color: 'rgba(245,159,53,0.02)' }]) }, data: amountBy('out') }
-    ]
-  })
-  mountChart(occasionChart.value, {
-    color: ['#19a66b', '#f59f35', '#4c8df6', '#d95d8b', '#7d68d8', '#16a0a6'],
-    tooltip: { ...richTooltip, trigger: 'item', formatter: ({ name, value, percent }: any) => `${name}<br/>¥${Number(value || 0).toFixed(2)} · ${percent}%` },
-    legend: { type: 'scroll', bottom: 0, left: 10, right: 10, icon: 'circle' },
-    series: [
-      {
-        name: '事项占比',
-        type: 'pie',
-        radius: ['48%', '68%'],
-        center: ['50%', '43%'],
-        minAngle: 8,
-        avoidLabelOverlap: true,
-        itemStyle: { borderRadius: 7, borderColor: '#fff', borderWidth: 2 },
-        label: { formatter: '{b}\n{d}%', color: '#33424a' },
-        data: occasionData
-      }
-    ]
-  })
-  mountChart(contactChart.value, {
-    color: ['#19a66b'],
-    graphic: contactData.length ? undefined : emptyGraphic('暂无对象统计'),
-    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    grid: barGrid,
-    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
-    yAxis: { type: 'category', inverse: true, data: contactData.map((item: any) => item.name), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
-    series: [{ name: '往来金额', type: 'bar', barWidth: 14, data: contactData.map((item: any) => item.amount_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0], color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#7ed8b0' }, { offset: 1, color: '#19a66b' }]) }, label: barValueLabel }]
-  })
-  mountChart(relationChart.value, {
-    color: ['#4c8df6'],
-    graphic: relationData.length ? undefined : emptyGraphic('暂无关系统计'),
-    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    grid: barGrid,
-    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
-    yAxis: { type: 'category', inverse: true, data: relationData.map((item: any) => item.label), axisLabel: axisStyle, axisTick: { show: false }, axisLine: { show: false } },
-    series: [{ name: '关系金额', type: 'bar', barWidth: 16, data: relationData.map((item: any) => item.amount_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0], color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#9dc1ff' }, { offset: 1, color: '#4c8df6' }]) }, label: barValueLabel }]
-  })
-  mountChart(reciprocityChart.value, {
-    color: ['#f2a83b', '#28a978', '#9aa5ad'],
-    graphic: reciprocityData.length ? undefined : emptyGraphic('暂无回礼统计'),
-    tooltip: { ...richTooltip, trigger: 'item', formatter: ({ name, value, data }: any) => `${name}<br/>${Number(data?.count || 0)} 笔 · ¥${Number(value || 0).toFixed(2)}` },
-    legend: { bottom: 0, left: 10, right: 10, icon: 'circle' },
-    series: [{
-      name: '回礼状态',
-      type: 'pie',
-      radius: ['48%', '68%'],
-      center: ['50%', '43%'],
-      minAngle: 8,
-      avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-      label: { formatter: '{b}\n{d}%', color: '#33424a' },
-      data: reciprocityData
-    }]
-  })
-  mountChart(balanceChart.value, {
-    color: ['#2f86c7'],
-    graphic: balanceData.length ? undefined : emptyGraphic('暂无差额统计'),
-    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params: any) => {
-      const item = balanceData[params[0]?.dataIndex]
-      if (!item) return ''
-      return `${item.name}<br/>收礼 ${money(item.received_cents)}<br/>送礼 ${money(item.given_cents)}<br/>净差额 ${money(item.net_cents)}`
-    } },
-    grid: barGrid,
-    xAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
-    yAxis: { type: 'category', inverse: true, data: balanceData.map((item: any) => item.name), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
-    series: [{
-      name: '净差额',
-      type: 'bar',
-      barWidth: 14,
-      data: balanceData.map((item: any) => item.net_cents / 100),
-      itemStyle: { borderRadius: [0, 8, 8, 0], color: ({ value }: any) => Number(value) >= 0 ? '#2f86c7' : '#d86b4a' },
-      label: { ...barValueLabel, formatter: ({ value }: any) => `¥${Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}` }
-    }]
-  })
-  mountChart(occasionTrendChart.value, {
-    color: ['#1f9d72', '#e9a23b', '#4f7fd9', '#c75d8a', '#7a6ccf', '#1d9aa7'],
-    graphic: occasionTrendRows.length ? undefined : emptyGraphic('暂无事项趋势'),
-    tooltip: { ...richTooltip, trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    legend: { type: 'scroll', top: 4, right: 12, icon: 'circle' },
-    grid: { left: 54, right: 24, top: 56, bottom: 34 },
-    xAxis: { type: 'category', data: occasionTrendPeriods, axisLabel: { ...axisStyle, formatter: (value: string) => stats.value?.trend_granularity === 'day' ? value.slice(5) : value }, axisTick: { show: false } },
-    yAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
-    series: occasionTrendNames.map((name) => ({
-      name: dictionaryLabel('occasion_type', String(name)),
-      type: 'line',
-      smooth: true,
-      symbolSize: 5,
-      lineStyle: { width: 2.5 },
-      areaStyle: { opacity: 0.08 },
-      emphasis: { focus: 'series' },
-      data: occasionTrendPeriods.map((period) => (occasionTrendRows.find((item: any) => item.period === period && item.name === name)?.amount_cents || 0) / 100)
-    }))
-  })
-  mountChart(relationMatrixChart.value, {
-    color: ['#36a97d', '#f0a43a'],
-    graphic: relationMatrixData.length ? undefined : emptyGraphic('暂无关系收送统计'),
-    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    legend: { top: 4, right: 12, icon: 'circle' },
-    grid: { ...barGrid, top: 42 },
-    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
-    yAxis: { type: 'category', inverse: true, data: relationMatrixData.map((item: any) => item.label), axisLabel: axisStyle, axisTick: { show: false }, axisLine: { show: false } },
-    series: [
-      { name: '收礼', type: 'bar', barGap: '18%', data: relationMatrixData.map((item: any) => item.received_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } },
-      { name: '送礼', type: 'bar', data: relationMatrixData.map((item: any) => item.given_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } }
-    ]
-  })
-  mountChart(occasionMatrixChart.value, {
-    color: ['#2f86c7', '#e69a32'],
-    graphic: occasionMatrixData.length ? undefined : emptyGraphic('暂无事项收送统计'),
-    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    legend: { top: 4, right: 12, icon: 'circle' },
-    grid: { ...barGrid, top: 42 },
-    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
-    yAxis: { type: 'category', inverse: true, data: occasionMatrixData.map((item: any) => item.label), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
-    series: [
-      { name: '收礼', type: 'bar', barGap: '18%', data: occasionMatrixData.map((item: any) => item.received_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } },
-      { name: '送礼', type: 'bar', data: occasionMatrixData.map((item: any) => item.given_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } }
-    ]
-  })
-  mountChart(periodCompareChart.value, {
-    color: ['#2f86c7', '#aeb9c0'],
-    tooltip: { ...richTooltip, trigger: 'axis', valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    legend: { top: 4, right: 12, icon: 'circle' },
-    grid: { left: 54, right: 24, top: 56, bottom: 34 },
-    xAxis: { type: 'category', data: ['收礼', '送礼', '净差额'], axisLabel: axisStyle, axisTick: { show: false } },
-    yAxis: { type: 'value', axisLabel: { ...axisStyle, formatter: (value: number) => `¥${value}` }, splitLine },
-    series: [
-      { name: '当前周期', type: 'bar', barWidth: 18, data: [compare.current?.received_cents || 0, compare.current?.given_cents || 0, compare.current?.net_cents || 0].map((value) => value / 100), itemStyle: { borderRadius: [8, 8, 0, 0] } },
-      { name: '上一周期', type: 'bar', barWidth: 18, data: [compare.previous?.received_cents || 0, compare.previous?.given_cents || 0, compare.previous?.net_cents || 0].map((value) => value / 100), itemStyle: { borderRadius: [8, 8, 0, 0] } }
-    ]
-  })
-  mountChart(handlerChart.value, {
-    color: ['#6c7fd6', '#35a78a'],
-    graphic: handlerData.length ? undefined : emptyGraphic('暂无经办人统计'),
-    tooltip: { ...richTooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: any) => `¥${Number(value || 0).toFixed(2)}` },
-    legend: { top: 4, right: 12, icon: 'circle' },
-    grid: { ...barGrid, top: 42 },
-    xAxis: { type: 'value', axisLabel: axisStyle, splitLine },
-    yAxis: { type: 'category', inverse: true, data: handlerData.map((item: any) => item.name), axisLabel: { ...axisStyle, width: 72, overflow: 'truncate' }, axisTick: { show: false }, axisLine: { show: false } },
-    series: [
-      { name: '收礼', type: 'bar', stack: 'handler', data: handlerData.map((item: any) => item.received_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } },
-      { name: '送礼', type: 'bar', stack: 'handler', data: handlerData.map((item: any) => item.given_cents / 100), itemStyle: { borderRadius: [0, 8, 8, 0] } }
-    ]
-  })
-}
-
-async function scheduleChartRender() {
-  if (activeView.value !== 'stats' && activeView.value !== 'dashboard') return
-  await nextTick()
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      renderCharts()
-      chartInstances.forEach((chart) => chart.resize())
-    })
-  })
-}
-
-function mountChart(el: HTMLElement | null, option: echarts.EChartsOption) {
-  if (!el || el.clientWidth === 0 || el.clientHeight === 0) return
-  const chart = echarts.init(el)
-  chart.setOption(option)
-  chart.resize()
-  chartInstances.push(chart)
-}
-
 const recordColumns: DataTableColumns<any> = [
   { title: '日期', key: 'occurred_on', render: (row) => formatDate(row.occurred_on) },
   { title: '对象', key: 'contact.name' as any, render: (row) => row.contact?.name || row.contact_id },
@@ -1394,6 +1172,7 @@ const userColumns: DataTableColumns<any> = [
 
 const contactColumns: DataTableColumns<any> = [
   { title: '名称', key: 'name' },
+  { title: '归属成员', key: 'owner_user', render: (row) => row.owner_user?.display_name || row.owner_user?.username || '未指定' },
   { title: '对象类型', key: 'contact_type', render: (row) => dictionaryLabel('contact_type', row.contact_type) },
   { title: '关系类型', key: 'relation_type', render: (row) => dictionaryLabel('relation_type', row.relation_type) },
   { title: '手机号', key: 'phone' },
@@ -1500,14 +1279,10 @@ const auditColumns: DataTableColumns<any> = [
 ]
 
 watch(activeView, () => {
-  scheduleChartRender()
   scrollActiveMobileNavIntoView()
 })
 watch(() => menuItems.value.map((item) => item.key).join(','), scrollActiveMobileNavIntoView)
 watch(keyword, () => debouncedContactsSearch())
-
-window.addEventListener('resize', () => chartInstances.forEach((chart) => chart.resize()))
-onBeforeUnmount(() => chartInstances.forEach((chart) => chart.dispose()))
 async function bootApp() {
   await loadVersion()
   await loadMe()
@@ -1634,303 +1409,166 @@ onMounted(async () => {
             </n-card>
           </section>
 
-          <section v-show="activeView === 'dashboard'" key="dashboard-view" class="view-stack">
-            <n-card title="时间范围" size="small">
-              <div class="filter-grid time-filter">
-                <n-select :value="statsQuery.range" :options="[{ label: '全部时间', value: 'all' }, { label: '本月', value: 'month' }, { label: '本年', value: 'year' }, { label: '近30天', value: 'last30' }, { label: '自定义', value: 'custom' }]" placeholder="选择时间维度" @update:value="setStatsRange" />
-                <n-date-picker v-model:formatted-value="statsQuery.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" @update:formatted-value="statsQuery.range = 'custom'" />
-                <n-date-picker v-model:formatted-value="statsQuery.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" @update:formatted-value="statsQuery.range = 'custom'" />
-                <n-button type="primary" class="query-button" @click="queryStats"><template #icon><Search :size="16" /></template>查询</n-button>
-              </div>
-            </n-card>
-            <div class="metrics">
-              <article><span>累计收礼</span><strong>{{ money(stats?.cards?.received_cents) }}</strong></article>
-              <article><span>累计送礼</span><strong>{{ money(stats?.cards?.given_cents) }}</strong></article>
-              <article><span>净差额</span><strong>{{ money(stats?.cards?.net_cents) }}</strong></article>
-              <article><span>对象/记录</span><strong>{{ stats?.cards?.contact_count || 0 }} / {{ stats?.cards?.record_count || 0 }}</strong></article>
-            </div>
-            <section class="split">
-              <n-card title="快速录入" size="small">
-                <n-form label-placement="top">
-                  <n-form-item label="往来对象"><n-select v-model:value="recordForm.contact_id" filterable :options="contacts.map((item) => ({ label: item.name, value: item.id }))" placeholder="请选择往来对象" /></n-form-item>
-                  <n-form-item label="事项类型"><n-select v-model:value="recordForm.occasion_type" filterable :options="occasionTypeOptions" placeholder="请选择事项类型" /></n-form-item>
-                  <n-form-item label="往来方向">
-                    <div class="direction-choice">
-                      <button type="button" :class="{ active: recordForm.direction === 'in' }" @click="setRecordDirection('in')">
-                        <strong>我家收礼</strong>
-                        <span>收到对方礼金或礼品</span>
-                      </button>
-                      <button type="button" :class="{ active: recordForm.direction === 'out' }" @click="setRecordDirection('out')">
-                        <strong>我家送礼</strong>
-                        <span>送出礼金或礼品</span>
-                      </button>
-                    </div>
-                  </n-form-item>
-                  <div class="form-row">
-                    <n-form-item label="金额"><n-input-number v-model:value="recordForm.amount_yuan" :min="0" :step="50" /></n-form-item>
-                    <n-form-item label="日期"><n-date-picker v-model:formatted-value="recordForm.occurred_on" value-format="yyyy-MM-dd" type="date" :clearable="false" /></n-form-item>
-                  </div>
-                  <n-form-item label="经办人"><n-select v-model:value="recordForm.handled_by" clearable filterable tag :options="handlerOptions" placeholder="请选择或输入经办人" /></n-form-item>
-                  <n-form-item label="备注"><n-input v-model:value="recordForm.remark" type="textarea" placeholder="请输入礼品说明、回礼安排或其他备注" /></n-form-item>
-            <n-button type="primary" block @click="runAction(createRecord)"><template #icon><Plus :size="18" /></template>保存流水</n-button>
-                </n-form>
-              </n-card>
-              <n-card title="最近流水" size="small">
-                <n-data-table class="desktop-table" :columns="recordColumns" :data="records.slice(0, 8)" size="small" />
-                <div class="mobile-list">
-                  <article v-for="record in records.slice(0, 8)" :key="record.id" class="mobile-item">
-                    <div class="item-main">
-                      <strong>{{ record.contact?.name || record.contact_id }}</strong>
-                      <n-tag size="small" :type="record.direction === 'in' ? 'success' : 'warning'">{{ directionText(record.direction) }}</n-tag>
-                    </div>
-                    <p>{{ dictionaryLabel('occasion_type', record.occasion_type) }} · {{ money(record.amount_cents) }}</p>
-                    <small>{{ formatDate(record.occurred_on) }} · {{ statusText(record.reciprocity_status) }}<template v-if="record.reciprocity_status === 'done'">（{{ reciprocityRoleText(record.direction) }}）</template></small>
-                    <div class="item-actions">
-                      <n-button size="small" secondary @click="openEditRecord(record)">编辑</n-button>
-                      <n-popconfirm @positive-click="deleteRecord(record)">
-                        <template #trigger><n-button size="small" secondary type="error">删除</n-button></template>
-                        确认删除这条流水？
-                      </n-popconfirm>
-                    </div>
-                  </article>
-                </div>
-              </n-card>
-            </section>
-          </section>
+          <DashboardView
+            v-show="activeView === 'dashboard'"
+            key="dashboard-view"
+            :stats="stats"
+            :query="statsQuery"
+            :record-form="recordForm"
+            :contacts="contacts"
+            :records="records"
+            :occasion-type-options="occasionTypeOptions"
+            :handler-options="handlerOptions"
+            :record-columns="recordColumns"
+            :money="money"
+            :dictionary-label="dictionaryLabel"
+            :direction-text="directionText"
+            :status-text="statusText"
+            :format-date="formatDate"
+            :reciprocity-role-text="reciprocityRoleText"
+            @query="queryStats"
+            @set-range="setStatsRange"
+            @set-record-direction="setRecordDirection"
+            @save-record="runAction(createRecord)"
+            @edit-record="openEditRecord"
+            @delete-record="deleteRecord"
+          />
 
-          <section v-show="activeView === 'families'" key="families-view" class="view-stack">
-            <n-card title="家庭列表" size="small">
-              <template #header-extra><n-button type="primary" size="small" @click="openCreateFamily"><template #icon><Plus :size="16" /></template>新增家庭</n-button></template>
-              <n-data-table class="desktop-table" :data="families" :columns="familyColumns" />
-              <div class="mobile-list">
-                <article v-for="family in families" :key="family.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ family.name }}</strong><n-tag size="small">{{ statusText(family.status) }}</n-tag></div>
-                  <p>{{ family.contact_name || '未填写联系人' }} · {{ family.contact_email || '未填写邮箱' }}</p>
-                  <small>{{ formatDateTime(family.created_at) }}</small>
-                  <div class="item-actions"><n-button size="small" secondary @click="openEditFamily(family)">编辑</n-button><n-button size="small" secondary @click="runAction(() => updateFamilyStatus(family))">{{ family.status === 'enabled' ? '禁用' : '启用' }}</n-button></div>
-                </article>
-              </div>
-            </n-card>
-          </section>
+          <FamiliesView
+            v-show="activeView === 'families'"
+            key="families-view"
+            :families="families"
+            :columns="familyColumns"
+            :status-text="statusText"
+            :format-date-time="formatDateTime"
+            @create="openCreateFamily"
+            @edit="openEditFamily"
+            @update-status="(family) => runAction(() => updateFamilyStatus(family))"
+          />
 
-          <section v-show="activeView === 'users'" key="users-view" class="view-stack">
-            <n-card title="用户列表" size="small">
-              <template #header-extra><n-button type="primary" size="small" @click="openCreateUser"><template #icon><Plus :size="16" /></template>新增用户</n-button></template>
-              <n-data-table class="desktop-table" :data="users" :columns="userColumns" />
-              <div class="mobile-list">
-                <article v-for="item in users" :key="item.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ item.display_name }}</strong><n-tag size="small">{{ statusText(item.role) }}</n-tag></div>
-                  <p>{{ item.username }} · {{ item.email || '未填写邮箱' }}</p>
-                  <small>{{ statusText(item.status) }} · 最后登录 {{ formatDateTime(item.last_login_at) }}</small>
-                  <div class="item-actions">
-                    <n-button size="small" secondary @click="openEditUser(item)">编辑</n-button>
-                    <n-button size="small" secondary type="primary" @click="openResetPassword(item)">重置密码</n-button>
-                    <n-button size="small" secondary @click="runAction(() => updateUserStatus(item))">{{ item.status === 'enabled' ? '禁用' : '启用' }}</n-button>
-                  </div>
-                </article>
-              </div>
-            </n-card>
-          </section>
+          <UsersView
+            v-show="activeView === 'users'"
+            key="users-view"
+            :users="users"
+            :columns="userColumns"
+            :status-text="statusText"
+            :format-date-time="formatDateTime"
+            @create="openCreateUser"
+            @edit="openEditUser"
+            @reset-password="openResetPassword"
+            @update-status="(item) => runAction(() => updateUserStatus(item))"
+          />
 
-          <section v-show="activeView === 'contacts'" key="contacts-view" class="view-stack">
-            <n-card title="对象列表" size="small">
-              <template #header-extra><n-button type="primary" size="small" @click="openCreateContact"><template #icon><Plus :size="16" /></template>新增对象</n-button></template>
-              <n-data-table class="desktop-table" :data="contacts" :columns="contactColumns" />
-              <div class="mobile-list">
-                <article v-for="item in contacts" :key="item.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ item.name }}</strong><n-tag size="small">{{ dictionaryLabel('relation_type', item.relation_type) }}</n-tag></div>
-                  <p>{{ dictionaryLabel('contact_type', item.contact_type) }} · {{ item.phone || '未填写电话' }}</p>
-                  <small>{{ item.address || '未填写地址' }}</small>
-                  <div class="item-actions"><n-button size="small" secondary @click="openEditContact(item)">编辑</n-button><n-popconfirm @positive-click="deleteContact(item)"><template #trigger><n-button size="small" secondary type="error">删除</n-button></template>确认删除该对象？</n-popconfirm></div>
-                </article>
-              </div>
-            </n-card>
-          </section>
+          <ContactsView
+            v-show="activeView === 'contacts'"
+            key="contacts-view"
+            :contacts="contacts"
+            :columns="contactColumns"
+            :dictionary-label="dictionaryLabel"
+            @create="openCreateContact"
+            @edit="openEditContact"
+            @delete="deleteContact"
+          />
 
-          <section v-show="activeView === 'records'" key="records-view" class="view-stack">
-            <n-card title="礼尚往来流水" size="small">
-              <template #header-extra><n-button type="primary" size="small" @click="openCreateRecord"><template #icon><Plus :size="16" /></template>新增流水</n-button></template>
-              <div class="filter-grid">
-                <n-select v-model:value="recordQuery.contact_id" clearable filterable :options="contacts.map((item) => ({ label: item.name, value: item.id }))" placeholder="筛选往来对象" />
-                <n-select v-model:value="recordQuery.occasion_type" clearable :options="occasionTypeOptions" placeholder="筛选事项类型" />
-                <n-select v-model:value="recordQuery.direction" clearable :options="[{ label: '我家收礼', value: 'in' }, { label: '我家送礼', value: 'out' }]" placeholder="筛选方向" />
-                <n-select v-model:value="recordQuery.reciprocity_status" clearable :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="筛选回礼状态" />
-                <n-date-picker v-model:formatted-value="recordQuery.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" />
-                <n-date-picker v-model:formatted-value="recordQuery.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" />
-                <n-button type="primary" class="query-button" @click="queryRecords"><template #icon><Search :size="16" /></template>查询</n-button>
-              </div>
-              <n-data-table class="desktop-table" :columns="recordColumns" :data="records" />
-              <div class="mobile-list">
-                <article v-for="record in records" :key="record.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ record.contact?.name || record.contact_id }}</strong><n-tag size="small" :type="record.direction === 'in' ? 'success' : 'warning'">{{ directionText(record.direction) }}</n-tag></div>
-                  <p>{{ dictionaryLabel('occasion_type', record.occasion_type) }} · {{ money(record.amount_cents) }}</p>
-                  <small>{{ formatDate(record.occurred_on) }} · {{ statusText(record.reciprocity_status) }}<template v-if="record.reciprocity_status === 'done'">（{{ reciprocityRoleText(record.direction) }}）</template></small>
-                  <div class="item-actions"><n-button size="small" secondary @click="openEditRecord(record)">编辑</n-button><n-popconfirm @positive-click="deleteRecord(record)"><template #trigger><n-button size="small" secondary type="error">删除</n-button></template>确认删除这条流水？</n-popconfirm></div>
-                </article>
-              </div>
-              <n-pagination v-model:page="recordQuery.page" v-model:page-size="recordQuery.page_size" :item-count="recordQuery.total" :page-sizes="[10, 20, 50]" show-size-picker class="pager" @update:page="loadRecords" @update:page-size="() => { recordQuery.page = 1; loadRecords() }" />
-            </n-card>
-          </section>
+          <RecordsView
+            v-show="activeView === 'records'"
+            key="records-view"
+            :query="recordQuery"
+            :contacts="contacts"
+            :records="records"
+            :columns="recordColumns"
+            :occasion-type-options="occasionTypeOptions"
+            :dictionary-label="dictionaryLabel"
+            :direction-text="directionText"
+            :status-text="statusText"
+            :money="money"
+            :format-date="formatDate"
+            :reciprocity-role-text="reciprocityRoleText"
+            @query-records="queryRecords"
+            @load-records="loadRecords"
+            @create="openCreateRecord"
+            @edit="openEditRecord"
+            @delete="deleteRecord"
+          />
 
-          <section v-show="activeView === 'dictionaries'" key="dictionaries-view" class="view-stack">
-            <n-card title="数据字典" size="small">
-              <template #header-extra>
-                <n-space>
-                  <n-button v-if="isSuperAdmin" secondary size="small" @click="openCreateDictType"><template #icon><Plus :size="16" /></template>新增字典类型</n-button>
-                  <n-button type="primary" size="small" :disabled="!writableDictionaryTypes.length" @click="openCreateDict"><template #icon><Plus :size="16" /></template>新增字典项</n-button>
-                </n-space>
-              </template>
-              <n-data-table
-                v-if="isSuperAdmin"
-                class="dict-type-table desktop-table"
-                :data="dictionaryTypes"
-                :columns="dictTypeColumns"
-                size="small"
-              />
-              <div v-if="isSuperAdmin" class="mobile-list dict-type-mobile">
-                <article v-for="type in dictionaryTypes" :key="type.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ type.name }}</strong><n-tag size="small">{{ statusText(type.enabled) }}</n-tag></div>
-                  <p>{{ type.code }}</p>
-                  <small>允许家庭自定义：{{ boolText(type.allow_family_custom) }} · 排序 {{ type.sort_order }}</small>
-                  <div class="item-actions"><n-button size="small" secondary @click="openEditDictType(type)">编辑</n-button></div>
-                </article>
-              </div>
-              <n-collapse accordion>
-                <n-collapse-item v-for="group in dictionaryGroups" :key="group.type.id" :title="`${group.type.name}（${group.items.length}）`" :name="group.type.code">
-                  <n-data-table class="desktop-table" :data="group.items" :columns="dictItemColumns" size="small" />
-                  <div class="mobile-list">
-                    <article v-for="item in group.items" :key="item.id" class="mobile-item">
-                      <div class="item-main"><strong>{{ item.label }}</strong><n-tag size="small">{{ item.is_system ? '系统预置' : '家庭自定义' }}</n-tag></div>
-                      <p>值：{{ item.value }}</p>
-                      <small>{{ statusText(item.enabled) }} · 排序 {{ item.sort_order }} · {{ formatDateTime(item.updated_at) }}</small>
-                      <div v-if="canEditDictionaryItem(item)" class="item-actions"><n-button size="small" secondary @click="openEditDict(item)">编辑</n-button><n-popconfirm @positive-click="deleteDict(item)"><template #trigger><n-button size="small" secondary type="error">删除</n-button></template>确认删除该字典项？</n-popconfirm></div>
-                      <small v-else-if="!item.is_system">该类型已关闭家庭自定义，当前项只读</small>
-                    </article>
-                  </div>
-                </n-collapse-item>
-              </n-collapse>
-            </n-card>
-          </section>
+          <DictionariesView
+            v-show="activeView === 'dictionaries'"
+            key="dictionaries-view"
+            :is-super-admin="isSuperAdmin"
+            :dictionary-types="dictionaryTypes"
+            :dictionary-groups="dictionaryGroups"
+            :type-columns="dictTypeColumns"
+            :item-columns="dictItemColumns"
+            :writable-dictionary-types="writableDictionaryTypes"
+            :status-text="statusText"
+            :bool-text="boolText"
+            :format-date-time="formatDateTime"
+            :can-edit-dictionary-item="canEditDictionaryItem"
+            @create-type="openCreateDictType"
+            @create-item="openCreateDict"
+            @edit-type="openEditDictType"
+            @edit-item="openEditDict"
+            @delete-item="deleteDict"
+          />
 
-          <section v-show="activeView === 'stats'" key="stats-view" class="view-stack">
-            <n-card title="时间范围" size="small">
-              <div class="filter-grid time-filter">
-                <n-select :value="statsQuery.range" :options="[{ label: '全部时间', value: 'all' }, { label: '本月', value: 'month' }, { label: '本年', value: 'year' }, { label: '近30天', value: 'last30' }, { label: '自定义', value: 'custom' }]" placeholder="选择时间维度" @update:value="setStatsRange" />
-                <n-date-picker v-model:formatted-value="statsQuery.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" @update:formatted-value="statsQuery.range = 'custom'" />
-                <n-date-picker v-model:formatted-value="statsQuery.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" @update:formatted-value="statsQuery.range = 'custom'" />
-                <n-button type="primary" class="query-button" @click="queryStats"><template #icon><Search :size="16" /></template>查询</n-button>
-              </div>
-            </n-card>
-            <div class="metrics">
-              <article><span>累计收礼</span><strong>{{ money(stats?.cards?.received_cents) }}</strong></article>
-              <article><span>累计送礼</span><strong>{{ money(stats?.cards?.given_cents) }}</strong></article>
-              <article><span>净差额</span><strong>{{ money(stats?.cards?.net_cents) }}</strong></article>
-              <article><span>记录总数</span><strong>{{ stats?.cards?.record_count || 0 }}</strong></article>
-            </div>
-            <div class="chart-grid">
-              <n-card :title="trendChartTitle" size="small" class="chart-card chart-card-priority"><div ref="trendChart" class="chart"></div></n-card>
-              <n-card title="回礼状态" size="small" class="chart-card chart-card-priority"><div ref="reciprocityChart" class="chart"></div></n-card>
-              <n-card title="待回礼对象 Top 10" size="small" class="chart-card chart-card-priority">
-                <div class="ranking-list ranking-list-priority">
-                  <article v-for="item in stats?.pending_top10 || []" :key="item.name">
-                    <span>{{ item.name }}</span>
-                    <small>{{ item.count }} 笔</small>
-                    <strong>{{ moneyCompact(item.amount_cents) }}</strong>
-                  </article>
-                  <n-empty v-if="!(stats?.pending_top10 || []).length" description="暂无待回礼对象" />
-                </div>
-              </n-card>
-              <n-card title="收送差额排行" size="small" class="chart-card chart-card-priority"><div ref="balanceChart" class="chart"></div></n-card>
-              <n-card title="对象 Top 10" size="small" class="chart-card"><div ref="contactChart" class="chart"></div></n-card>
-              <n-card title="周期对比" size="small" class="chart-card">
-                <p class="chart-subtitle">{{ periodCompareRangeText }}</p>
-                <div ref="periodCompareChart" class="chart chart-with-subtitle"></div>
-              </n-card>
-              <n-card title="事项类型趋势" size="small" class="chart-card"><div ref="occasionTrendChart" class="chart"></div></n-card>
-              <n-card title="事项收送对比" size="small" class="chart-card"><div ref="occasionMatrixChart" class="chart"></div></n-card>
-              <n-card title="事项占比" size="small" class="chart-card"><div ref="occasionChart" class="chart"></div></n-card>
-              <n-card title="关系收送矩阵" size="small" class="chart-card"><div ref="relationMatrixChart" class="chart"></div></n-card>
-              <n-card title="关系统计" size="small" class="chart-card"><div ref="relationChart" class="chart"></div></n-card>
-              <n-card title="经办人统计" size="small" class="chart-card"><div ref="handlerChart" class="chart"></div></n-card>
-            </div>
-          </section>
+          <StatsView
+            v-show="activeView === 'stats'"
+            key="stats-view"
+            :active="activeView === 'stats'"
+            :stats="stats"
+            :query="statsQuery"
+            :money="money"
+            :money-compact="moneyCompact"
+            :dictionary-label="dictionaryLabel"
+            :status-text="statusText"
+            @query="queryStats"
+            @set-range="setStatsRange"
+          />
 
-          <section v-show="activeView === 'backup'" key="backup-view" class="view-stack">
-            <div class="summary-grid">
-              <article><span>备份状态</span><strong>{{ backupForm.enabled ? '已启用' : '未启用' }}</strong></article>
-              <article><span>备份频率</span><strong>{{ statusText(backupForm.frequency) }}</strong></article>
-              <article><span>ZIP 加密</span><strong>{{ backupForm.encrypt_enabled ? '已开启' : '未开启' }}</strong></article>
-              <article><span>收件人</span><strong>{{ backupForm.recipient_emails_text.split('\n').filter(Boolean).length }} 个</strong></article>
-            </div>
-            <n-card title="备份操作" size="small">
-              <div class="toolbar">
-                <n-button type="primary" @click="showBackupModal = true"><template #icon><Settings :size="17" /></template>编辑备份配置</n-button>
-                <n-button @click="runAction(() => downloadBackup(false))"><template #icon><Download :size="17" /></template>立即导出</n-button>
-                <n-button @click="runAction(() => downloadBackup(true))">发送备份邮件</n-button>
-              </div>
-            </n-card>
-            <n-card title="备份日志" size="small">
-              <n-data-table class="desktop-table" :data="backupJobs" :columns="backupJobColumns" />
-              <div class="mobile-list">
-                <article v-for="job in backupJobs" :key="job.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ job.file_name || '未生成文件' }}</strong><n-tag size="small">{{ statusText(job.status) }}</n-tag></div>
-                  <p>{{ statusText(job.trigger_type) }} · {{ formatDateTime(job.started_at) }}</p>
-                  <small>{{ job.error_message || '无错误信息' }}</small>
-                </article>
-              </div>
-            </n-card>
-          </section>
+          <BackupView
+            v-show="activeView === 'backup'"
+            key="backup-view"
+            :form="backupForm"
+            :jobs="backupJobs"
+            :columns="backupJobColumns"
+            :status-text="statusText"
+            :format-date-time="formatDateTime"
+            @edit="showBackupModal = true"
+            @download="runAction(() => downloadBackup(false))"
+            @send-email="runAction(() => downloadBackup(true))"
+          />
 
-          <section v-show="activeView === 'imports'" key="imports-view" class="view-stack">
-            <n-card title="导入恢复" size="small">
-              <div class="toolbar import-toolbar">
-                <n-button size="small" @click="runAction(downloadImportTemplate)"><template #icon><Download :size="16" /></template>下载手工模板</n-button>
-                <n-button type="primary" size="small" @click="openImportModal('manual')"><template #icon><Upload :size="16" /></template>手工导入</n-button>
-                <n-button size="small" @click="openImportModal('backup')"><template #icon><ArchiveRestore :size="16" /></template>备份恢复</n-button>
-              </div>
-              <n-data-table v-if="importErrors.length" class="desktop-table import-error-table" :data="importErrors" :columns="importErrorColumns" />
-              <div v-if="importErrors.length" class="mobile-list import-error-list">
-                <article v-for="error in importErrors" :key="`${error.sheet_name}-${error.row_number}-${error.field_name}`" class="mobile-item">
-                  <div class="item-main"><strong>{{ error.sheet_name }}</strong><n-tag size="small" type="error">第 {{ error.row_number }} 行</n-tag></div>
-                  <p>{{ error.field_name }}</p>
-                  <small>{{ error.error_message }}</small>
-                </article>
-              </div>
-              <n-empty v-else description="暂无导入错误" />
-            </n-card>
-            <n-card title="导入批次" size="small">
-              <n-data-table class="desktop-table" :data="importJobs" :columns="importJobColumns" />
-              <div class="mobile-list">
-                <article v-for="job in importJobs" :key="job.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ job.source_file_name || '未命名文件' }}</strong><n-tag size="small">{{ statusText(job.status) }}</n-tag></div>
-                  <p>新增 {{ job.created_count }} · 更新 {{ job.updated_count }} · 错误 {{ job.error_count }}</p>
-                  <small>{{ formatDateTime(job.started_at) }}</small>
-                  <div v-if="job.status === 'dry_run_ready'" class="item-actions"><n-button size="small" type="primary" secondary @click="runAction(() => executeImport(job.id))">执行导入</n-button></div>
-                  <div v-else-if="isImportJobFailed(job)" class="item-actions"><n-button size="small" type="error" secondary @click="runAction(() => showImportJobErrors(job))">查看详情</n-button></div>
-                </article>
-              </div>
-            </n-card>
-          </section>
+          <ImportsView
+            v-show="activeView === 'imports'"
+            key="imports-view"
+            :errors="importErrors"
+            :jobs="importJobs"
+            :error-columns="importErrorColumns"
+            :job-columns="importJobColumns"
+            :status-text="statusText"
+            :format-date-time="formatDateTime"
+            :is-job-failed="isImportJobFailed"
+            @download-template="runAction(downloadImportTemplate)"
+            @open-manual="openImportModal('manual')"
+            @open-backup="openImportModal('backup')"
+            @execute-import="(jobId) => runAction(() => executeImport(jobId))"
+            @show-errors="(job) => runAction(() => showImportJobErrors(job))"
+          />
 
-          <section v-show="activeView === 'audit'" key="audit-view" class="view-stack">
-            <n-card title="审计日志" size="small">
-              <div class="filter-grid audit-filter">
-                <n-input v-model:value="auditQuery.keyword" clearable placeholder="搜索用户、动作、资源或 IP" />
-                <n-select v-model:value="auditQuery.success" clearable :options="[{ label: '成功', value: true }, { label: '失败', value: false }]" placeholder="筛选结果" />
-                <n-button size="small" type="primary" class="query-button" @click="queryAudit"><template #icon><Search :size="16" /></template>查询</n-button>
-                <n-button size="small" @click="refreshAudit"><template #icon><RefreshCw :size="16" /></template>刷新</n-button>
-              </div>
-              <n-data-table class="desktop-table" :data="auditLogs" :columns="auditColumns" />
-              <div class="mobile-list">
-                <article v-for="log in auditLogs" :key="log.id" class="mobile-item">
-                  <div class="item-main"><strong>{{ actionText(log.action) }}</strong><n-tag size="small">{{ statusText(log.success) }}</n-tag></div>
-                  <p>{{ log.operator?.display_name || log.operator?.username || '未知用户' }} · {{ resourceText(log.resource_type) }} · {{ log.ip || '未知 IP' }}</p>
-                  <small>{{ formatDateTime(log.created_at) }}</small>
-                </article>
-              </div>
-              <n-pagination v-model:page="auditQuery.page" v-model:page-size="auditQuery.page_size" :item-count="auditQuery.total" :page-sizes="[10, 20, 50]" show-size-picker class="pager" @update:page="loadAudit" @update:page-size="() => { auditQuery.page = 1; loadAudit() }" />
-            </n-card>
-          </section>
+          <AuditView
+            v-show="activeView === 'audit'"
+            key="audit-view"
+            :query="auditQuery"
+            :logs="auditLogs"
+            :columns="auditColumns"
+            :action-text="actionText"
+            :status-text="statusText"
+            :resource-text="resourceText"
+            :format-date-time="formatDateTime"
+            @query-audit="queryAudit"
+            @refresh="refreshAudit"
+            @load-audit="loadAudit"
+          />
 
           <n-modal v-model:show="showFamilyModal" preset="card" :title="editingFamilyId ? '编辑家庭' : '新增家庭'" class="form-modal">
             <n-form label-placement="top">
@@ -1993,6 +1631,7 @@ onMounted(async () => {
           <n-modal v-model:show="showContactModal" preset="card" :title="editingContactId ? '编辑往来对象' : '新增往来对象'" class="form-modal">
             <n-form label-placement="top">
               <n-form-item label="名称"><n-input v-model:value="contactForm.name" placeholder="请输入姓名、家庭或单位名称" /></n-form-item>
+              <n-form-item label="归属成员"><n-select v-model:value="contactForm.owner_user_id" clearable filterable :options="familyMemberOptions" placeholder="请选择该对象属于哪位家庭成员" /></n-form-item>
               <n-form-item label="对象类型"><n-select v-model:value="contactForm.contact_type" filterable :options="contactTypeOptions" placeholder="请选择对象类型" /></n-form-item>
               <n-form-item label="关系类型"><n-select v-model:value="contactForm.relation_type" filterable :options="relationTypeOptions" placeholder="请选择关系类型" /></n-form-item>
               <n-form-item label="手机号"><n-input v-model:value="contactForm.phone" placeholder="请输入手机号" /></n-form-item>
