@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/spf13/viper"
 )
@@ -52,9 +51,9 @@ type PostgresConfig struct {
 
 type JWTConfig struct {
 	Secret           string
-	SigningMethod    string        `mapstructure:"signing_method"`
-	AccessTokenHours time.Duration `mapstructure:"access_token_hours"`
-	RefreshTokenDays time.Duration `mapstructure:"refresh_token_days"`
+	SigningMethod    string `mapstructure:"signing_method"`
+	AccessTokenHours int    `mapstructure:"access_token_hours"`
+	RefreshTokenDays int    `mapstructure:"refresh_token_days"`
 	Issuer           string
 }
 
@@ -97,7 +96,7 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.3.1.0")
+	v.SetDefault("app.version", "1.3.1.1")
 	v.SetDefault("database.postgres.auto_create", true)
 	v.SetDefault("database.postgres.auto_migrate", true)
 	v.SetDefault("jwt.signing_method", "HS256")
@@ -154,6 +153,12 @@ func LoadConfig() {
 	}
 	if AppConfig.JWT.Secret == "" {
 		panic("jwt.secret is required")
+	}
+	if AppConfig.JWT.AccessTokenHours <= 0 {
+		AppConfig.JWT.AccessTokenHours = 2
+	}
+	if AppConfig.JWT.RefreshTokenDays <= 0 {
+		AppConfig.JWT.RefreshTokenDays = 30
 	}
 	if AppConfig.Security.LoginMaxAttempts <= 0 {
 		AppConfig.Security.LoginMaxAttempts = 5

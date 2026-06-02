@@ -28,7 +28,7 @@ import StatsView from './views/StatsView.vue'
 import UsersView from './views/UsersView.vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.1.0'
+const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.1.1'
 const FAMILY_CACHE_KEY = 'ledger_families_cache'
 const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -331,11 +331,34 @@ async function copyGeneratedPassword(target: 'user' | 'family_admin' | 'reset_us
     return
   }
   try {
-    await navigator.clipboard.writeText(password)
+    await copyText(password)
     message.success('密码已复制')
   } catch {
     message.error('复制失败，请手动选择密码')
   }
+}
+
+async function copyText(text: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return
+    }
+  } catch {
+    // Fall back to textarea copy below.
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!copied) throw new Error('copy failed')
 }
 
 function secureRandom(max: number) {
@@ -397,9 +420,16 @@ function logout() {
 }
 
 async function changePassword() {
-  await api('/auth/change-password', { method: 'POST', body: JSON.stringify(passwordForm) })
-  message.success('密码已修改，请重新登录')
-  logout()
+  loading.value = true
+  try {
+    await api('/auth/change-password', { method: 'POST', body: JSON.stringify(passwordForm) })
+    message.success('密码已修改，请重新登录')
+    logout()
+  } catch (error: any) {
+    message.error(error?.message || '密码修改失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 function familyQuery() {
@@ -1338,7 +1368,7 @@ onMounted(async () => {
             <n-form-item label="新密码">
               <n-input v-model:value="passwordForm.new_password" type="password" show-password-on="click" placeholder="至少 10 位，包含大小写字母、数字和特殊字符" @keydown.enter="changePassword" />
             </n-form-item>
-            <n-button type="primary" block @click="changePassword">完成修改并重新登录</n-button>
+            <n-button type="primary" block :loading="loading" @click="changePassword">完成修改并重新登录</n-button>
             <n-button quaternary block @click="logout">返回登录</n-button>
           </n-form>
         </section>

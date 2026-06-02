@@ -31,7 +31,7 @@ func GenerateAccessToken(userID uint, familyID *uint, username, role string) (st
 		Username: username,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour * config.AppConfig.JWT.AccessTokenHours)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(config.AppConfig.JWT.AccessTokenHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			Issuer:    config.AppConfig.JWT.Issuer,
 		},

@@ -71,7 +71,7 @@ func (h *AppHandler) Login(c *gin.Context) {
 		RefreshTokenHash: refreshHash,
 		ExpiresAt:        now.AddDate(0, 0, int(config.AppConfig.JWT.RefreshTokenDays)),
 		IP:               c.ClientIP(),
-		UserAgent:        c.GetHeader("User-Agent"),
+		UserAgent:        truncateUserAgent(c.GetHeader("User-Agent")),
 	}
 	if err := h.db.Create(&session).Error; err != nil {
 		fail(c, http.StatusInternalServerError, "保存会话失败")
@@ -84,7 +84,7 @@ func (h *AppHandler) Login(c *gin.Context) {
 		"access_token":         accessToken,
 		"refresh_token":        refreshToken,
 		"token_type":           "Bearer",
-		"expires_in":           int64(config.AppConfig.JWT.AccessTokenHours * 3600),
+		"expires_in":           int64(config.AppConfig.JWT.AccessTokenHours) * 3600,
 		"must_change_password": user.MustChangePassword,
 		"user":                 sanitizeUser(user),
 	})
@@ -112,7 +112,7 @@ func (h *AppHandler) Refresh(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "生成访问令牌失败")
 		return
 	}
-	ok(c, gin.H{"access_token": accessToken, "token_type": "Bearer", "expires_in": int64(config.AppConfig.JWT.AccessTokenHours * 3600)})
+	ok(c, gin.H{"access_token": accessToken, "token_type": "Bearer", "expires_in": int64(config.AppConfig.JWT.AccessTokenHours) * 3600})
 }
 
 func (h *AppHandler) Logout(c *gin.Context) {
@@ -251,6 +251,14 @@ func loginThrottleKeys(username, ip string) [][2]string {
 
 func normalizeLoginKey(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func truncateUserAgent(userAgent string) string {
+	const maxUserAgentLength = 255
+	if len([]rune(userAgent)) <= maxUserAgentLength {
+		return userAgent
+	}
+	return string([]rune(userAgent)[:maxUserAgentLength])
 }
 
 func loginThrottleCondition(keys [][2]string) (string, []any) {
