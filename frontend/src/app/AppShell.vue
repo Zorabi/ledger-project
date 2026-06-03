@@ -55,6 +55,7 @@ const {
   createRecord,
   createUser,
   currentFamilyId,
+  dashboardRecords,
   debouncedAuditQuery,
   debouncedContactsQuery,
   debouncedLoadActiveView,
@@ -331,7 +332,7 @@ const {
             :query="statsQuery"
             :record-form="recordForm"
             :contacts="contactOptions"
-            :records="records"
+            :records="dashboardRecords"
             :occasion-type-options="occasionTypeOptions"
             :handler-options="handlerOptions"
             :related-record-options="relatedRecordOptions"

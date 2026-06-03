@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.3.2.0"
+        "version": "1.3.3.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -2254,6 +2254,12 @@ const docTemplate = `{
                         "type": "string",
                         "required": false,
                         "description": ""
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "仅查询已回礼但未关联流水的记录",
+                        "name": "reciprocity_unlinked",
+                        "in": "query"
                     },
                     {
                         "name": "remark",
@@ -4719,11 +4725,12 @@ const docTemplate = `{
             }
         }
     }
-}`
+}
+`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.3.2.0",
+	Version:          "1.3.3.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

@@ -52,6 +52,9 @@ func (h *AppHandler) ListGiftRecords(c *gin.Context) {
 	if reciprocityStatus := c.Query("reciprocity_status"); reciprocityStatus != "" {
 		q = q.Where("reciprocity_status = ?", reciprocityStatus)
 	}
+	if c.Query("reciprocity_unlinked") == "true" {
+		q = q.Where("gift_records.reciprocity_status = ? AND gift_records.related_record_id IS NULL", models.ReciprocityDone)
+	}
 	if remark := c.Query("remark"); remark != "" {
 		keyword := "%" + remark + "%"
 		q = q.Where("(remark ILIKE ? OR gift_description ILIKE ?)", keyword, keyword)
@@ -99,6 +102,7 @@ func (h *AppHandler) CreateGiftRecord(c *gin.Context) {
 		return
 	}
 	h.audit(c, &record.FamilyID, &auth.UserID, "create_gift_record", "gift_record", strconv.Itoa(int(record.ID)), true, nil)
+	h.db.Preload("Contact").First(&record, record.ID)
 	ok(c, record)
 }
 
@@ -193,6 +197,7 @@ func (h *AppHandler) UpdateGiftRecord(c *gin.Context) {
 		return
 	}
 	h.audit(c, &item.FamilyID, &auth.UserID, "update_gift_record", "gift_record", strconv.Itoa(int(item.ID)), true, nil)
+	h.db.Preload("Contact").First(&item, item.ID)
 	ok(c, item)
 }
 
@@ -213,10 +218,21 @@ func (h *AppHandler) syncRelatedGiftRecord(tx *gorm.DB, record *models.GiftRecor
 	if related.Direction == record.Direction {
 		return errors.New("关联回礼流水方向必须与当前流水相反")
 	}
-	if err := tx.Model(record).Updates(map[string]any{"reciprocity_status": models.ReciprocityDone, "related_record_id": related.ID}).Error; err != nil {
+	if err := tx.Model(&models.GiftRecord{}).
+		Where("id = ? AND family_id = ?", record.ID, record.FamilyID).
+		Select("reciprocity_status", "related_record_id").
+		Updates(map[string]any{"reciprocity_status": models.ReciprocityDone, "related_record_id": related.ID}).Error; err != nil {
 		return err
 	}
-	return tx.Model(&related).Updates(map[string]any{"reciprocity_status": models.ReciprocityDone, "related_record_id": record.ID}).Error
+	if err := tx.Model(&models.GiftRecord{}).
+		Where("id = ? AND family_id = ?", related.ID, record.FamilyID).
+		Select("reciprocity_status", "related_record_id").
+		Updates(map[string]any{"reciprocity_status": models.ReciprocityDone, "related_record_id": record.ID}).Error; err != nil {
+		return err
+	}
+	record.ReciprocityStatus = models.ReciprocityDone
+	record.RelatedRecordID = &related.ID
+	return nil
 }
 
 func (h *AppHandler) unlinkRelatedGiftRecord(tx *gorm.DB, recordID uint, familyID uint, oldRelatedRecordID *uint, newRelatedRecordID *uint) error {

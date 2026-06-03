@@ -9,7 +9,7 @@ import type { PageResult, SessionUser, ViewKey } from '../shared/types'
 
 export function useLedgerApp() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.2.0'
+  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.3.0'
   const FAMILY_CACHE_KEY = 'ledger_families_cache'
   const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -47,6 +47,7 @@ export function useLedgerApp() {
   const editingDictTypeId = ref<number | null>(null)
   const actionSubmitting = ref(false)
   let lastActionAt = 0
+  let hydratingRecordForm = false
   const contactSaving = ref(false)
   const recordSaving = ref(false)
 
@@ -69,6 +70,7 @@ export function useLedgerApp() {
   const contacts = ref<any[]>([])
   const contactOptions = ref<any[]>([])
   const records = ref<any[]>([])
+  const dashboardRecords = ref<any[]>([])
   const relatedRecords = ref<any[]>([])
   const dictionaryTypes = ref<any[]>([])
   const dictionaryItems = ref<any[]>([])
@@ -81,7 +83,7 @@ export function useLedgerApp() {
   const familyListQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', status: null as string | null })
   const userQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', role: null as string | null, status: null as string | null, family_id: null as number | null })
   const contactQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', contact_type: null as string | null, relation_type: null as string | null, owner_user_id: null as number | null, status: null as string | null, has_owner: null as boolean | null, has_phone: null as boolean | null })
-  const recordQuery = reactive({ page: 1, page_size: 10, total: 0, contact_id: null as number | null, owner_user_id: null as number | null, contact_type: null as string | null, relation_type: null as string | null, direction: null as string | null, occasion_type: null as string | null, reciprocity_status: null as string | null, remark: '', start_date: null as string | null, end_date: null as string | null })
+  const recordQuery = reactive({ page: 1, page_size: 10, total: 0, contact_id: null as number | null, owner_user_id: null as number | null, contact_type: null as string | null, relation_type: null as string | null, direction: null as string | null, occasion_type: null as string | null, reciprocity_status: null as string | null, reciprocity_unlinked: null as boolean | null, remark: '', start_date: null as string | null, end_date: null as string | null })
   const statsQuery = reactive({ range: 'all', start_date: null as string | null, end_date: null as string | null })
   const backupQuery = reactive({ page: 1, page_size: 10, total: 0 })
   const importQuery = reactive({ page: 1, page_size: 10, total: 0 })
@@ -511,6 +513,7 @@ export function useLedgerApp() {
       if (recordQuery.direction) params.set('direction', recordQuery.direction)
       if (recordQuery.occasion_type) params.set('occasion_type', recordQuery.occasion_type)
       if (recordQuery.reciprocity_status) params.set('reciprocity_status', recordQuery.reciprocity_status)
+      if (recordQuery.reciprocity_unlinked) params.set('reciprocity_unlinked', 'true')
       if (recordQuery.remark) params.set('remark', recordQuery.remark)
       if (recordQuery.start_date) params.set('start_date', recordQuery.start_date)
       if (recordQuery.end_date) params.set('end_date', recordQuery.end_date)
@@ -529,8 +532,8 @@ export function useLedgerApp() {
       appendStatsQueryParams(params)
       if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
       const query = params.toString()
-      await latestOnly('records', () => api<PageResult<any>>(`/gift-records?${query}`), (data) => {
-        records.value = data.list
+      await latestOnly('dashboard-records', () => api<PageResult<any>>(`/gift-records?${query}`), (data) => {
+        dashboardRecords.value = data.list
       })
     })
   }
@@ -548,6 +551,37 @@ export function useLedgerApp() {
     await latestOnly('related-records', () => api<PageResult<any>>(`/gift-records?${query}`), (data) => {
       relatedRecords.value = data.list
     })
+  }
+
+  async function refreshCurrentRecordView() {
+    if (activeView.value === 'dashboard') {
+      await Promise.all([loadDashboardRecords(), loadStats()])
+      return
+    }
+    if (activeView.value === 'records') {
+      await loadRecords()
+    }
+  }
+
+  function patchRecordRows(items: any[]) {
+    const patches = items.filter((item) => item?.id)
+    if (!patches.length) return
+    const apply = (list: any[]) => list.map((row) => patches.find((item) => item.id === row.id) || row)
+    records.value = apply(records.value)
+    dashboardRecords.value = apply(dashboardRecords.value)
+    relatedRecords.value = apply(relatedRecords.value)
+  }
+
+  async function syncSavedRecordRows(savedRecord: any) {
+    const patches = [savedRecord]
+    if (savedRecord?.related_record_id) {
+      try {
+        patches.push(await api(`/gift-records/${savedRecord.related_record_id}`))
+      } catch {
+        // The list refresh below remains the source of truth if the related row is unavailable.
+      }
+    }
+    patchRecordRows(patches)
   }
 
   function appendStatsQueryParams(params: URLSearchParams) {
@@ -734,17 +768,19 @@ export function useLedgerApp() {
     recordSaving.value = true
     try {
       const payload = { ...recordForm, family_id: currentFamilyId.value, amount_cents: Math.round(Number(recordForm.amount_yuan || 0) * 100) }
+      let savedRecord: any
       if (editingRecordId.value) {
-        await api(`/gift-records/${editingRecordId.value}`, { method: 'PUT', body: JSON.stringify(payload) })
+        savedRecord = await api(`/gift-records/${editingRecordId.value}`, { method: 'PUT', body: JSON.stringify(payload) })
         message.success('流水已更新')
       } else {
-        await api('/gift-records', { method: 'POST', body: JSON.stringify(payload) })
+        savedRecord = await api('/gift-records', { method: 'POST', body: JSON.stringify(payload) })
         message.success('流水已保存')
       }
+      await syncSavedRecordRows(savedRecord)
+      await refreshCurrentRecordView()
       editingRecordId.value = null
       resetRecordForm()
       showRecordModal.value = false
-      await Promise.all([loadRecords(), loadDashboardRecords(), loadStats()])
     } finally {
       recordSaving.value = false
     }
@@ -934,7 +970,7 @@ export function useLedgerApp() {
   }
 
   function resetRecordQuery() {
-    Object.assign(recordQuery, { page: 1, page_size: 10, total: 0, contact_id: null, owner_user_id: null, contact_type: null, relation_type: null, direction: null, occasion_type: null, reciprocity_status: null, remark: '', start_date: null, end_date: null })
+    Object.assign(recordQuery, { page: 1, page_size: 10, total: 0, contact_id: null, owner_user_id: null, contact_type: null, relation_type: null, direction: null, occasion_type: null, reciprocity_status: null, reciprocity_unlinked: null, remark: '', start_date: null, end_date: null })
     loadRecords()
   }
 
@@ -1016,6 +1052,7 @@ export function useLedgerApp() {
 
   function openEditRecord(row: any) {
     editingRecordId.value = row.id
+    hydratingRecordForm = true
     Object.assign(recordForm, {
       contact_id: row.contact_id,
       occasion_type: row.occasion_type,
@@ -1028,6 +1065,9 @@ export function useLedgerApp() {
       related_record_id: row.related_record_id || null,
       remark: row.remark || ''
     })
+    nextTick(() => {
+      hydratingRecordForm = false
+    })
     void loadRelatedRecords()
     showRecordModal.value = true
   }
@@ -1035,6 +1075,7 @@ export function useLedgerApp() {
   function openReciprocityRecord(row: any) {
     editingRecordId.value = null
     const nextDirection = row.direction === 'in' ? 'out' : 'in'
+    hydratingRecordForm = true
     Object.assign(recordForm, {
       contact_id: row.contact_id,
       occasion_type: row.occasion_type,
@@ -1047,6 +1088,9 @@ export function useLedgerApp() {
       related_record_id: row.id,
       remark: ''
     })
+    nextTick(() => {
+      hydratingRecordForm = false
+    })
     relatedRecords.value = [row]
     void loadRelatedRecords()
     showRecordModal.value = true
@@ -1055,7 +1099,7 @@ export function useLedgerApp() {
   async function deleteRecord(row: any) {
     await api(`/gift-records/${row.id}`, { method: 'DELETE' })
     message.success('流水已删除')
-    await Promise.all([loadRecords(), loadDashboardRecords(), loadStats()])
+    await refreshCurrentRecordView()
   }
 
   function resetRecordForm() {
@@ -1208,6 +1252,7 @@ export function useLedgerApp() {
   })
   watch(() => menuItems.value.map((item) => item.key).join(','), scrollActiveMobileNavIntoView)
   watch(() => recordForm.contact_id, () => {
+    if (hydratingRecordForm) return
     recordForm.related_record_id = null
     void loadRelatedRecords()
   })
@@ -1278,6 +1323,7 @@ export function useLedgerApp() {
     dictOptions,
     dictTypeColumns,
     dictTypeForm,
+    dashboardRecords,
     downloadBackup,
     downloadImportTemplate,
     dryRunImport,

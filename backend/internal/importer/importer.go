@@ -17,11 +17,12 @@ import (
 )
 
 type Payload struct {
-	Mode         string              `json:"mode"`
-	Contacts     []map[string]string `json:"contacts"`
-	Records      []map[string]string `json:"records"`
-	Dictionaries []map[string]string `json:"dictionaries"`
-	Users        []map[string]string `json:"users"`
+	Mode            string              `json:"mode"`
+	Contacts        []map[string]string `json:"contacts"`
+	Records         []map[string]string `json:"records"`
+	DictionaryTypes []map[string]string `json:"dictionary_types"`
+	Dictionaries    []map[string]string `json:"dictionaries"`
+	Users           []map[string]string `json:"users"`
 }
 
 type Result struct {
@@ -53,6 +54,7 @@ func DryRunBackup(db *gorm.DB, familyID uint, content []byte) (*Result, error) {
 	}
 	result := &Result{Payload: payload, SourceSheets: sheets}
 	inspectContacts(db, familyID, payload.Contacts, result)
+	inspectDictionaryTypes(db, payload.DictionaryTypes, result)
 	inspectDictionaries(db, familyID, payload.Dictionaries, result)
 	inspectUsers(db, familyID, payload.Users, result)
 	inspectRecords(db, familyID, payload.Records, result)
@@ -81,6 +83,7 @@ func ApplyBackup(db *gorm.DB, familyID uint, payload Payload, operatorID uint) (
 	result := &Result{Payload: payload}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		applyContacts(tx, familyID, payload.Contacts, operatorID, result)
+		applyDictionaryTypes(tx, payload.DictionaryTypes, result)
 		applyDictionaries(tx, familyID, payload.Dictionaries, result)
 		applyUsers(tx, familyID, payload.Users, result)
 		applyRecords(tx, familyID, payload.Records, operatorID, result)
@@ -137,7 +140,7 @@ func ParseBackup(content []byte) (Payload, []string, error) {
 	}
 	defer f.Close()
 	sheets := map[string][][]string{}
-	names := []string{"往来流水", "往来对象", "家庭字典", "家庭成员"}
+	names := []string{"往来流水", "往来对象", "家庭成员"}
 	for _, name := range names {
 		rows, err := readSheet(f, name)
 		if err != nil {
@@ -145,12 +148,24 @@ func ParseBackup(content []byte) (Payload, []string, error) {
 		}
 		sheets[name] = rows
 	}
+	dictionaryTypeRows, err := readSheet(f, "字典类型")
+	if err != nil {
+		return Payload{}, nil, err
+	}
+	dictionaryRows, err := readSheet(f, "数据字典")
+	if err != nil {
+		return Payload{}, nil, err
+	}
+	sheets["字典类型"] = dictionaryTypeRows
+	sheets["数据字典"] = dictionaryRows
+	names = append(names, "字典类型", "数据字典")
 	return Payload{
-		Mode:         "backup",
-		Records:      rowsToMaps(sheets["往来流水"]),
-		Contacts:     rowsToMaps(sheets["往来对象"]),
-		Dictionaries: rowsToMaps(sheets["家庭字典"]),
-		Users:        rowsToMaps(sheets["家庭成员"]),
+		Mode:            "backup",
+		Records:         rowsToMaps(sheets["往来流水"]),
+		Contacts:        rowsToMaps(sheets["往来对象"]),
+		DictionaryTypes: rowsToMaps(sheets["字典类型"]),
+		Dictionaries:    rowsToMaps(sheets["数据字典"]),
+		Users:           rowsToMaps(sheets["家庭成员"]),
 	}, names, nil
 }
 
@@ -206,7 +221,7 @@ func rowsToMaps(rows [][]string) []map[string]string {
 }
 
 func normalizePayloadRows(payload *Payload) {
-	for _, rows := range [][]map[string]string{payload.Records, payload.Contacts, payload.Dictionaries, payload.Users} {
+	for _, rows := range [][]map[string]string{payload.Records, payload.Contacts, payload.DictionaryTypes, payload.Dictionaries, payload.Users} {
 		for _, row := range rows {
 			for key, value := range row {
 				normalized := normalizeHeader(key)
@@ -275,14 +290,49 @@ func inspectContacts(db *gorm.DB, familyID uint, rows []map[string]string, resul
 func inspectDictionaries(db *gorm.DB, familyID uint, rows []map[string]string, result *Result) {
 	for i, row := range rows {
 		if row["类型编码"] == "" || row["标签"] == "" {
-			addError(result, "家庭字典", i+2, "标签", "类型编码和标签不能为空", row)
+			addError(result, "数据字典", i+2, "标签", "类型编码和标签不能为空", row)
 			continue
 		}
-		if id := parseID(row["字典编号"]); id > 0 && exists(db, &models.DictionaryItem{}, familyID, id) {
-			result.Updated++
-		} else {
+		isSystem := normalizeBool(fallback(row["系统项"], "false"))
+		dtype, typeExists := findDictionaryTypeByCode(db, row["类型编码"])
+		if !typeExists {
 			result.Created++
+			continue
 		}
+		value := fallback(row["值"], row["标签"])
+		if _, ok := findDictionaryItemByValue(db, familyID, dtype.ID, value, isSystem); ok {
+			result.Updated++
+			continue
+		}
+		id := parseID(row["字典编号"])
+		if id > 0 {
+			if existing, ok := findDictionaryItemByID(db, familyID, id, isSystem); ok && (existing.TypeID != dtype.ID || existing.Value != value || existing.IsSystem != isSystem) {
+				addError(result, "数据字典", i+2, "字典编号", "字典编号已被其他字典项占用，请使用空库恢复或移除该编号后重试", row)
+				continue
+			}
+		}
+		result.Created++
+	}
+}
+
+func inspectDictionaryTypes(db *gorm.DB, rows []map[string]string, result *Result) {
+	for i, row := range rows {
+		if row["类型编码"] == "" || row["类型名称"] == "" {
+			addError(result, "字典类型", i+2, "类型编码", "类型编码和类型名称不能为空", row)
+			continue
+		}
+		if _, ok := findDictionaryTypeByCode(db, row["类型编码"]); ok {
+			result.Updated++
+			continue
+		}
+		id := parseID(row["类型编号"])
+		if id > 0 {
+			if existing, ok := findDictionaryTypeByID(db, id); ok && existing.Code != row["类型编码"] {
+				addError(result, "字典类型", i+2, "类型编号", "类型编号已被其他字典类型占用，请使用空库恢复或移除该编号后重试", row)
+				continue
+			}
+		}
+		result.Created++
 	}
 }
 
@@ -364,24 +414,76 @@ func applyContacts(tx *gorm.DB, familyID uint, rows []map[string]string, operato
 func applyDictionaries(tx *gorm.DB, familyID uint, rows []map[string]string, result *Result) {
 	for i, row := range rows {
 		if row["类型编码"] == "" || row["标签"] == "" {
-			addError(result, "家庭字典", i+2, "标签", "类型编码和标签不能为空", row)
+			addError(result, "数据字典", i+2, "标签", "类型编码和标签不能为空", row)
 			continue
 		}
 		var dtype models.DictionaryType
 		if err := tx.Where("code = ?", row["类型编码"]).First(&dtype).Error; err != nil {
-			addError(result, "家庭字典", i+2, "类型编码", "字典类型不存在", row)
+			addError(result, "数据字典", i+2, "类型编码", "字典类型不存在", row)
 			continue
 		}
 		enabled := normalizeBool(row["启用"])
-		item := models.DictionaryItem{TypeID: dtype.ID, FamilyID: &familyID, Label: row["标签"], Value: fallback(row["值"], row["标签"]), SortOrder: int(parseID(row["排序"])), Enabled: enabled, IsSystem: false}
-		id := parseID(row["字典编号"])
-		if id > 0 && exists(tx, &models.DictionaryItem{}, familyID, id) {
-			tx.Model(&models.DictionaryItem{}).Where("id = ? AND family_id = ?", id, familyID).Updates(item)
-			result.Updated++
-		} else {
-			tx.Create(&item)
-			result.Created++
+		isSystem := normalizeBool(fallback(row["系统项"], "false"))
+		var itemFamilyID *uint
+		if !isSystem {
+			itemFamilyID = &familyID
 		}
+		value := fallback(row["值"], row["标签"])
+		item := models.DictionaryItem{TypeID: dtype.ID, FamilyID: itemFamilyID, Label: row["标签"], Value: value, SortOrder: int(parseID(row["排序"])), Enabled: enabled, IsSystem: isSystem}
+		id := parseID(row["字典编号"])
+		if existing, ok := findDictionaryItemByValue(tx, familyID, dtype.ID, value, isSystem); ok {
+			tx.Model(&models.DictionaryItem{}).Where("id = ?", existing.ID).Updates(item)
+			result.Updated++
+			continue
+		}
+		if id > 0 {
+			if existing, ok := findDictionaryItemByID(tx, familyID, id, isSystem); ok && (existing.TypeID != dtype.ID || existing.Value != value || existing.IsSystem != isSystem) {
+				addError(result, "数据字典", i+2, "字典编号", "字典编号已被其他字典项占用，请使用空库恢复或移除该编号后重试", row)
+				continue
+			}
+			item.ID = id
+		}
+		tx.Create(&item)
+		result.Created++
+	}
+}
+
+func applyDictionaryTypes(tx *gorm.DB, rows []map[string]string, result *Result) {
+	for i, row := range rows {
+		if row["类型编码"] == "" || row["类型名称"] == "" {
+			addError(result, "字典类型", i+2, "类型编码", "类型编码和类型名称不能为空", row)
+			continue
+		}
+		updates := map[string]any{
+			"name":                row["类型名称"],
+			"description":         row["类型说明"],
+			"allow_family_custom": normalizeBool(fallback(row["允许家庭自定义"], "true")),
+			"sort_order":          int(parseID(row["排序"])),
+			"enabled":             normalizeBool(row["启用"]),
+		}
+		if existing, ok := findDictionaryTypeByCode(tx, row["类型编码"]); ok {
+			tx.Model(&models.DictionaryType{}).Where("id = ?", existing.ID).Updates(updates)
+			result.Updated++
+			continue
+		}
+		id := parseID(row["类型编号"])
+		if id > 0 {
+			if existing, ok := findDictionaryTypeByID(tx, id); ok && existing.Code != row["类型编码"] {
+				addError(result, "字典类型", i+2, "类型编号", "类型编号已被其他字典类型占用，请使用空库恢复或移除该编号后重试", row)
+				continue
+			}
+		}
+		item := models.DictionaryType{
+			ID:                id,
+			Code:              row["类型编码"],
+			Name:              row["类型名称"],
+			Description:       row["类型说明"],
+			AllowFamilyCustom: normalizeBool(fallback(row["允许家庭自定义"], "true")),
+			SortOrder:         int(parseID(row["排序"])),
+			Enabled:           normalizeBool(row["启用"]),
+		}
+		tx.Create(&item)
+		result.Created++
 	}
 }
 
@@ -462,6 +564,48 @@ func exists[T any](db *gorm.DB, model *T, familyID uint, id uint) bool {
 	var count int64
 	db.Model(model).Where("id = ? AND family_id = ?", id, familyID).Count(&count)
 	return count > 0
+}
+
+func findDictionaryTypeByCode(db *gorm.DB, code string) (models.DictionaryType, bool) {
+	var item models.DictionaryType
+	db.Where("code = ?", strings.TrimSpace(code)).Limit(1).Find(&item)
+	return item, item.ID > 0
+}
+
+func findDictionaryTypeByID(db *gorm.DB, id uint) (models.DictionaryType, bool) {
+	var item models.DictionaryType
+	if id == 0 {
+		return item, false
+	}
+	db.Where("id = ?", id).Limit(1).Find(&item)
+	return item, item.ID > 0
+}
+
+func findDictionaryItemByID(db *gorm.DB, familyID uint, id uint, isSystem bool) (models.DictionaryItem, bool) {
+	var item models.DictionaryItem
+	if id == 0 {
+		return item, false
+	}
+	q := db.Where("id = ?", id)
+	if isSystem {
+		q = q.Where("is_system = true")
+	} else {
+		q = q.Where("family_id = ?", familyID)
+	}
+	q.Limit(1).Find(&item)
+	return item, item.ID > 0
+}
+
+func findDictionaryItemByValue(db *gorm.DB, familyID uint, typeID uint, value string, isSystem bool) (models.DictionaryItem, bool) {
+	var item models.DictionaryItem
+	q := db.Where("type_id = ? AND value = ?", typeID, strings.TrimSpace(value))
+	if isSystem {
+		q = q.Where("is_system = true")
+	} else {
+		q = q.Where("family_id = ?", familyID)
+	}
+	q.Limit(1).Find(&item)
+	return item, item.ID > 0
 }
 
 func resolveOwnerUserID(db *gorm.DB, familyID uint, row map[string]string) (*uint, error) {

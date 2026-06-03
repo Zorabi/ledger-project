@@ -26,6 +26,7 @@ func GenerateFamilyBackup(db *gorm.DB, familyID uint) (*FamilyBackup, error) {
 	}
 	var contacts []models.Contact
 	var records []models.GiftRecord
+	var dictionaryTypes []models.DictionaryType
 	var dictionaries []models.DictionaryItem
 	var users []models.User
 	if err := db.Preload("OwnerUser").Where("family_id = ?", familyID).Order("id asc").Find(&contacts).Error; err != nil {
@@ -34,7 +35,13 @@ func GenerateFamilyBackup(db *gorm.DB, familyID uint) (*FamilyBackup, error) {
 	if err := db.Preload("Contact").Where("family_id = ?", familyID).Order("id asc").Find(&records).Error; err != nil {
 		return nil, err
 	}
-	if err := db.Preload("Type").Where("family_id = ?", familyID).Order("id asc").Find(&dictionaries).Error; err != nil {
+	if err := db.Order("sort_order asc,id asc").Find(&dictionaryTypes).Error; err != nil {
+		return nil, err
+	}
+	if err := db.Preload("Type").
+		Where("family_id = ? OR is_system = true OR family_id IS NULL", familyID).
+		Order("is_system desc,type_id asc,sort_order asc,id asc").
+		Find(&dictionaries).Error; err != nil {
 		return nil, err
 	}
 	if err := db.Where("family_id = ?", familyID).Order("id asc").Find(&users).Error; err != nil {
@@ -44,7 +51,8 @@ func GenerateFamilyBackup(db *gorm.DB, familyID uint) (*FamilyBackup, error) {
 	sheets := []sheet{
 		{name: "往来流水", rows: giftRecordRows(records)},
 		{name: "往来对象", rows: contactRows(contacts)},
-		{name: "家庭字典", rows: dictionaryRows(dictionaries)},
+		{name: "字典类型", rows: dictionaryTypeRows(dictionaryTypes)},
+		{name: "数据字典", rows: dictionaryRows(dictionaries)},
 		{name: "家庭成员", rows: userRows(users)},
 		{name: "统计摘要", rows: summaryRows(records, contacts)},
 	}
@@ -65,7 +73,8 @@ func GenerateImportTemplate() (*FamilyBackup, error) {
 		{name: "填写说明", rows: importGuideRows()},
 		{name: "填写示例", rows: importExampleRows()},
 		{name: "高级字段说明", rows: importAdvancedGuideRows()},
-		{name: "家庭字典", rows: [][]string{dictionaryHeader()}},
+		{name: "字典类型", rows: [][]string{dictionaryTypeHeader()}},
+		{name: "数据字典", rows: [][]string{dictionaryHeader()}},
 		{name: "家庭成员", rows: [][]string{userHeader()}},
 	}
 	content, err := buildImportTemplateXLSX(sheets)
@@ -132,7 +141,7 @@ func importAdvancedGuideRows() [][]string {
 		{"高级字段", "业务编号、对象编号、关联记录编号、字典编号、用户编号等字段仅用于系统完整备份恢复，普通导入无需填写。"},
 		{"恢复备份", "从系统导出的完整备份文件可直接上传校验，系统会识别高级字段并按编号更新已有数据。"},
 		{"金额(分)", "历史备份可能包含“金额(分)”列；如果同时存在“金额(分)”和“金额(元)”，系统优先读取“金额(分)”。"},
-		{"家庭字典/家庭成员", "这两个工作表主要用于完整备份恢复；普通用户通常不需要填写。"},
+		{"字典类型/数据字典/家庭成员", "这些工作表主要用于新版完整备份恢复；普通用户通常不需要填写。"},
 	}
 }
 
@@ -259,7 +268,15 @@ func contactRows(contacts []models.Contact) [][]string {
 func dictionaryRows(items []models.DictionaryItem) [][]string {
 	rows := [][]string{dictionaryHeader()}
 	for _, i := range items {
-		rows = append(rows, []string{itoa(i.ID), i.Type.Code, i.Type.Name, i.Label, i.Value, strconv.Itoa(i.SortOrder), strconv.FormatBool(i.Enabled)})
+		rows = append(rows, []string{itoa(i.ID), i.Type.Code, i.Type.Name, i.Label, i.Value, strconv.Itoa(i.SortOrder), strconv.FormatBool(i.Enabled), strconv.FormatBool(i.IsSystem)})
+	}
+	return rows
+}
+
+func dictionaryTypeRows(types []models.DictionaryType) [][]string {
+	rows := [][]string{dictionaryTypeHeader()}
+	for _, t := range types {
+		rows = append(rows, []string{itoa(t.ID), t.Code, t.Name, t.Description, strconv.FormatBool(t.AllowFamilyCustom), strconv.Itoa(t.SortOrder), strconv.FormatBool(t.Enabled)})
 	}
 	return rows
 }
@@ -305,7 +322,11 @@ func contactHeader() []string {
 }
 
 func dictionaryHeader() []string {
-	return []string{"字典编号", "类型编码", "类型名称", "标签", "值", "排序", "启用"}
+	return []string{"字典编号", "类型编码", "类型名称", "标签", "值", "排序", "启用", "系统项"}
+}
+
+func dictionaryTypeHeader() []string {
+	return []string{"类型编号", "类型编码", "类型名称", "类型说明", "允许家庭自定义", "排序", "启用"}
 }
 
 func userHeader() []string {

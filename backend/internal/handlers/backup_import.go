@@ -369,7 +369,7 @@ func urlQueryEscape(value string) string {
 }
 
 func backupEmailBody(scene string, fileName string, sentAt time.Time) string {
-	return fmt.Sprintf("您好：\n\n本邮件由礼尚往来系统自动发送。\n\n备份场景：%s\n附件名称：%s\n导出时间：%s\n\n附件包含当前家庭的往来对象、往来流水、家庭字典、家庭成员和统计摘要。若附件为 ZIP 文件，说明当前家庭已开启备份加密，请使用备份配置中的密码提示确认解压密码。\n\n如您未进行相关操作，请及时联系系统管理员。", scene, fileName, sentAt.Format("2006-01-02 15:04:05"))
+	return fmt.Sprintf("您好：\n\n本邮件由礼尚往来系统自动发送。\n\n备份场景：%s\n附件名称：%s\n导出时间：%s\n\n附件包含当前家庭的往来对象、往来流水、字典类型、系统字典、家庭字典、家庭成员和统计摘要，可用于系统异常后的完整数据恢复。若附件为 ZIP 文件，说明当前家庭已开启备份加密，请使用备份配置中的密码提示确认解压密码。\n\n如您未进行相关操作，请及时联系系统管理员。", scene, fileName, sentAt.Format("2006-01-02 15:04:05"))
 }
 
 func mapToJSONMap(value map[string]string) models.JSONMap {

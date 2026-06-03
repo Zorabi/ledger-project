@@ -53,6 +53,7 @@ function reloadFromFirstPage(query: any) {
           <n-select v-model:value="query.occasion_type" clearable :options="occasionTypeOptions" placeholder="筛选事项类型" />
           <n-select v-model:value="query.direction" clearable :options="[{ label: '我家收礼', value: 'in' }, { label: '我家送礼', value: 'out' }]" placeholder="筛选方向" />
           <n-select v-model:value="query.reciprocity_status" clearable :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="筛选回礼状态" />
+          <n-select v-model:value="query.reciprocity_unlinked" clearable :options="[{ label: '已回礼但未关联流水', value: true }]" placeholder="筛选回礼关联" />
           <n-input v-model:value="query.remark" clearable placeholder="筛选备注或礼品说明" />
           <n-date-picker v-model:formatted-value="query.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" />
           <n-date-picker v-model:formatted-value="query.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" />
