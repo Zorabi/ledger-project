@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { RefreshCw, Search } from 'lucide-vue-next'
+import { RotateCcw, Search } from 'lucide-vue-next'
 
 defineProps<{
   query: any
   logs: any[]
   columns: any[]
+  loading: boolean
   actionText: (value: string) => string
   statusText: (value: string | boolean) => string
   resourceText: (value: string) => string
@@ -13,7 +14,7 @@ defineProps<{
 
 const emit = defineEmits<{
   queryAudit: []
-  refresh: []
+  resetAudit: []
   loadAudit: []
 }>()
 
@@ -26,13 +27,17 @@ function reloadFromFirstPage(query: any) {
 <template>
   <section class="view-stack">
     <n-card title="审计日志" size="small">
-      <div class="filter-grid audit-filter">
-        <n-input v-model:value="query.keyword" clearable placeholder="搜索用户、动作、资源或 IP" />
-        <n-select v-model:value="query.success" clearable :options="[{ label: '成功', value: true }, { label: '失败', value: false }]" placeholder="筛选结果" />
-        <n-button size="small" type="primary" class="query-button" @click="emit('queryAudit')"><template #icon><Search :size="16" /></template>查询</n-button>
-        <n-button size="small" @click="emit('refresh')"><template #icon><RefreshCw :size="16" /></template>刷新</n-button>
+      <div class="filter-bar">
+        <div class="filter-fields audit-filter">
+          <n-input v-model:value="query.keyword" clearable placeholder="搜索用户、动作、资源或 IP" />
+          <n-select v-model:value="query.success" clearable :options="[{ label: '成功', value: true }, { label: '失败', value: false }]" placeholder="筛选结果" />
+        </div>
+        <div class="filter-actions">
+          <n-button type="primary" class="query-button" @click="emit('queryAudit')"><template #icon><Search :size="16" /></template>查询</n-button>
+          <n-button secondary class="filter-action-button" @click="emit('resetAudit')"><template #icon><RotateCcw :size="16" /></template>重置</n-button>
+        </div>
       </div>
-      <n-data-table class="desktop-table" :data="logs" :columns="columns" />
+      <n-data-table class="desktop-table" :data="logs" :columns="columns" :loading="loading" />
       <div class="mobile-list">
         <article v-for="log in logs" :key="log.id" class="mobile-item">
           <div class="item-main"><strong>{{ actionText(log.action) }}</strong><n-tag size="small">{{ statusText(log.success) }}</n-tag></div>

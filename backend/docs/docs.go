@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.3.1.2"
+        "version": "1.3.2.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -517,6 +517,20 @@ const docTemplate = `{
                 ],
                 "parameters": [
                     {
+                        "name": "keyword",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "page",
                         "in": "query",
                         "type": "integer",
@@ -827,6 +841,34 @@ const docTemplate = `{
                 ],
                 "parameters": [
                     {
+                        "name": "keyword",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "role",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "page",
                         "in": "query",
                         "type": "integer",
@@ -835,13 +877,6 @@ const docTemplate = `{
                     },
                     {
                         "name": "page_size",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "family_id",
                         "in": "query",
                         "type": "integer",
                         "required": false,
@@ -1747,9 +1782,65 @@ const docTemplate = `{
                         "description": ""
                     },
                     {
+                        "name": "owner_user_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "contact_type",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "relation_type",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "has_owner",
+                        "in": "query",
+                        "type": "boolean",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "has_phone",
+                        "in": "query",
+                        "type": "boolean",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "family_id",
                         "in": "query",
                         "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "created_start",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "created_end",
+                        "in": "query",
+                        "type": "string",
                         "required": false,
                         "description": ""
                     },
@@ -2123,6 +2214,27 @@ const docTemplate = `{
                         "description": ""
                     },
                     {
+                        "name": "owner_user_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "contact_type",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "relation_type",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "direction",
                         "in": "query",
                         "type": "string",
@@ -2144,6 +2256,20 @@ const docTemplate = `{
                         "description": ""
                     },
                     {
+                        "name": "remark",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "start_date",
                         "in": "query",
                         "type": "string",
@@ -2154,13 +2280,6 @@ const docTemplate = `{
                         "name": "end_date",
                         "in": "query",
                         "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
                         "required": false,
                         "description": ""
                     },
@@ -2632,6 +2751,27 @@ const docTemplate = `{
                         "description": ""
                     },
                     {
+                        "name": "keyword_actions",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "keyword_resources",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "keyword_success",
+                        "in": "query",
+                        "type": "boolean",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "page",
                         "in": "query",
                         "type": "integer",
@@ -2927,6 +3067,20 @@ const docTemplate = `{
                 ],
                 "parameters": [
                     {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "trigger_type",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
                         "name": "family_id",
                         "in": "query",
                         "type": "integer",
@@ -3126,6 +3280,20 @@ const docTemplate = `{
                     }
                 ],
                 "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
                     {
                         "name": "family_id",
                         "in": "query",
@@ -4555,7 +4723,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.3.1.2",
+	Version:          "1.3.2.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

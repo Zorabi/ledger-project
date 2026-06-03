@@ -7,6 +7,7 @@ defineProps<{
   dictionaryGroups: any[]
   typeColumns: any[]
   itemColumns: any[]
+  loading: boolean
   writableDictionaryTypes: any[]
   statusText: (value: string | boolean) => string
   boolText: (value: boolean) => string
@@ -37,6 +38,7 @@ const emit = defineEmits<{
         class="dict-type-table desktop-table"
         :data="dictionaryTypes"
         :columns="typeColumns"
+        :loading="loading"
         size="small"
       />
       <div v-if="isSuperAdmin" class="mobile-list dict-type-mobile">
@@ -49,7 +51,7 @@ const emit = defineEmits<{
       </div>
       <n-collapse accordion>
         <n-collapse-item v-for="group in dictionaryGroups" :key="group.type.id" :title="`${group.type.name}（${group.items.length}）`" :name="group.type.code">
-          <n-data-table class="desktop-table" :data="group.items" :columns="itemColumns" size="small" />
+          <n-data-table class="desktop-table" :data="group.items" :columns="itemColumns" :loading="loading" size="small" />
           <div class="mobile-list">
             <article v-for="item in group.items" :key="item.id" class="mobile-item">
               <div class="item-main"><strong>{{ item.label }}</strong><n-tag size="small">{{ item.is_system ? '系统预置' : '家庭自定义' }}</n-tag></div>

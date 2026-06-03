@@ -136,7 +136,14 @@ func (h *AppHandler) ListBackupJobs(c *gin.Context) {
 		return
 	}
 	var items []models.BackupJob
-	page(c, h.db.Model(&models.BackupJob{}).Where("family_id = ?", familyID).Order("id desc"), &items)
+	q := h.db.Model(&models.BackupJob{}).Where("family_id = ?", familyID)
+	if status := c.Query("status"); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if triggerType := c.Query("trigger_type"); triggerType != "" {
+		q = q.Where("trigger_type = ?", triggerType)
+	}
+	page(c, q.Order("id desc"), &items)
 }
 
 func (h *AppHandler) ImportDryRun(c *gin.Context) {
@@ -209,7 +216,14 @@ func (h *AppHandler) ListImportJobs(c *gin.Context) {
 		return
 	}
 	var items []models.ImportJob
-	page(c, h.db.Model(&models.ImportJob{}).Where("family_id = ?", familyID).Order("id desc"), &items)
+	q := h.db.Model(&models.ImportJob{}).Where("family_id = ?", familyID)
+	if status := c.Query("status"); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if keyword := c.Query("keyword"); keyword != "" {
+		q = q.Where("source_file_name ILIKE ?", "%"+keyword+"%")
+	}
+	page(c, q.Order("id desc"), &items)
 }
 
 func (h *AppHandler) ListImportErrors(c *gin.Context) {

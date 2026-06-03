@@ -3,17 +3,25 @@ import { Download, Settings } from 'lucide-vue-next'
 
 defineProps<{
   form: any
+  query: any
   jobs: any[]
   columns: any[]
+  loading: boolean
   statusText: (value: string | boolean) => string
   formatDateTime: (value?: string) => string
 }>()
 
 const emit = defineEmits<{
+  load: []
   edit: []
   download: []
   sendEmail: []
 }>()
+
+function reloadFromFirstPage(query: any) {
+  query.page = 1
+  emit('load')
+}
 </script>
 
 <template>
@@ -32,7 +40,7 @@ const emit = defineEmits<{
       </div>
     </n-card>
     <n-card title="备份日志" size="small">
-      <n-data-table class="desktop-table" :data="jobs" :columns="columns" />
+      <n-data-table class="desktop-table" :data="jobs" :columns="columns" :loading="loading" />
       <div class="mobile-list">
         <article v-for="job in jobs" :key="job.id" class="mobile-item">
           <div class="item-main"><strong>{{ job.file_name || '未生成文件' }}</strong><n-tag size="small">{{ statusText(job.status) }}</n-tag></div>
@@ -40,6 +48,16 @@ const emit = defineEmits<{
           <small>{{ job.error_message || '无错误信息' }}</small>
         </article>
       </div>
+      <n-pagination
+        v-model:page="query.page"
+        v-model:page-size="query.page_size"
+        :item-count="query.total"
+        :page-sizes="[10, 20, 50]"
+        show-size-picker
+        class="pager"
+        @update:page="emit('load')"
+        @update:page-size="() => reloadFromFirstPage(query)"
+      />
     </n-card>
   </section>
 </template>

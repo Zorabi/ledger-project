@@ -335,9 +335,9 @@ onBeforeUnmount(() => {
   <div class="chart-grid">
     <n-card :title="trendChartTitle" size="small" class="chart-card chart-card-priority"><div ref="trendChart" class="chart"></div></n-card>
     <n-card title="归属成员统计" size="small" class="chart-card chart-card-priority"><div ref="ownerChart" class="chart"></div></n-card>
-    <n-card title="待回礼对象 Top 10" size="small" class="chart-card chart-card-priority">
+    <n-card title="待回礼对象 Top 5" size="small" class="chart-card chart-card-priority">
       <div class="ranking-list ranking-list-priority">
-        <article v-for="item in stats?.pending_top10 || []" :key="item.name">
+        <article v-for="item in (stats?.pending_top10 || []).slice(0, 5)" :key="item.name">
           <span>{{ item.name }}</span>
           <small>{{ item.count }} 笔</small>
           <strong>{{ moneyCompact(item.amount_cents) }}</strong>

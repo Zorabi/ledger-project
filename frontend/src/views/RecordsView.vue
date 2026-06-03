@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { Plus, Search } from 'lucide-vue-next'
+import { Plus, RotateCcw, Search } from 'lucide-vue-next'
 
 defineProps<{
   query: any
   contacts: any[]
   records: any[]
   columns: any[]
+  loading: boolean
+  familyMemberOptions: any[]
+  contactTypeOptions: any[]
+  relationTypeOptions: any[]
   occasionTypeOptions: any[]
   dictionaryLabel: (typeCode: string, value: string) => string
   directionText: (value: string) => string
@@ -17,9 +21,11 @@ defineProps<{
 
 const emit = defineEmits<{
   queryRecords: []
+  resetRecords: []
   loadRecords: []
   create: []
   edit: [record: any]
+  reciprocity: [record: any]
   delete: [record: any]
 }>()
 
@@ -38,26 +44,34 @@ function reloadFromFirstPage(query: any) {
           新增流水
         </n-button>
       </template>
-      <div class="filter-grid">
-        <n-select v-model:value="query.contact_id" clearable filterable :options="contacts.map((item) => ({ label: item.name, value: item.id }))" placeholder="筛选往来对象" />
-        <n-select v-model:value="query.occasion_type" clearable :options="occasionTypeOptions" placeholder="筛选事项类型" />
-        <n-select v-model:value="query.direction" clearable :options="[{ label: '我家收礼', value: 'in' }, { label: '我家送礼', value: 'out' }]" placeholder="筛选方向" />
-        <n-select v-model:value="query.reciprocity_status" clearable :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="筛选回礼状态" />
-        <n-date-picker v-model:formatted-value="query.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" />
-        <n-date-picker v-model:formatted-value="query.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" />
-        <n-button type="primary" class="query-button" @click="emit('queryRecords')">
-          <template #icon><Search :size="16" /></template>
-          查询
-        </n-button>
+      <div class="filter-bar">
+        <div class="filter-fields">
+          <n-select v-model:value="query.contact_id" clearable filterable :options="contacts.map((item) => ({ label: item.name, value: item.id }))" placeholder="筛选往来对象" />
+          <n-select v-model:value="query.owner_user_id" clearable filterable :options="familyMemberOptions" placeholder="筛选归属成员" />
+          <n-select v-model:value="query.contact_type" clearable :options="contactTypeOptions" placeholder="筛选对象类型" />
+          <n-select v-model:value="query.relation_type" clearable :options="relationTypeOptions" placeholder="筛选关系类型" />
+          <n-select v-model:value="query.occasion_type" clearable :options="occasionTypeOptions" placeholder="筛选事项类型" />
+          <n-select v-model:value="query.direction" clearable :options="[{ label: '我家收礼', value: 'in' }, { label: '我家送礼', value: 'out' }]" placeholder="筛选方向" />
+          <n-select v-model:value="query.reciprocity_status" clearable :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="筛选回礼状态" />
+          <n-input v-model:value="query.remark" clearable placeholder="筛选备注或礼品说明" />
+          <n-date-picker v-model:formatted-value="query.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" />
+          <n-date-picker v-model:formatted-value="query.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" />
+        </div>
+        <div class="filter-actions">
+          <n-button type="primary" class="query-button" @click="emit('queryRecords')"><template #icon><Search :size="16" /></template>查询</n-button>
+          <n-button secondary class="filter-action-button" @click="emit('resetRecords')"><template #icon><RotateCcw :size="16" /></template>重置</n-button>
+        </div>
       </div>
-      <n-data-table class="desktop-table" :columns="columns" :data="records" />
+      <n-data-table class="desktop-table" :columns="columns" :data="records" :loading="loading" />
       <div class="mobile-list">
         <article v-for="record in records" :key="record.id" class="mobile-item">
           <div class="item-main"><strong>{{ record.contact?.name || record.contact_id }}</strong><n-tag size="small" :type="record.direction === 'in' ? 'success' : 'warning'">{{ directionText(record.direction) }}</n-tag></div>
           <p>{{ dictionaryLabel('occasion_type', record.occasion_type) }} · {{ money(record.amount_cents) }}</p>
+          <p v-if="record.remark || record.gift_description" class="item-note">{{ record.remark || record.gift_description }}</p>
           <small>{{ formatDate(record.occurred_on) }} · {{ statusText(record.reciprocity_status) }}<template v-if="record.reciprocity_status === 'done'">（{{ reciprocityRoleText(record.direction) }}）</template></small>
           <div class="item-actions">
             <n-button size="small" secondary @click="emit('edit', record)">编辑</n-button>
+            <n-button v-if="record.reciprocity_status === 'pending'" size="small" secondary type="success" @click="emit('reciprocity', record)">回礼</n-button>
             <n-popconfirm @positive-click="emit('delete', record)">
               <template #trigger><n-button size="small" secondary type="error">删除</n-button></template>
               确认删除这条流水？

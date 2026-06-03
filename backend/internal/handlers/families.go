@@ -25,6 +25,13 @@ func (h *AppHandler) ListFamilies(c *gin.Context) {
 		}
 		q = q.Where("id = ?", *auth.FamilyID)
 	}
+	if keyword := c.Query("keyword"); keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("name ILIKE ? OR contact_name ILIKE ? OR contact_email ILIKE ? OR remark ILIKE ?", like, like, like, like)
+	}
+	if status := c.Query("status"); status != "" {
+		q = q.Where("status = ?", status)
+	}
 	pageNum, pageSize := paginationParams(c)
 	var total int64
 	q.Count(&total)

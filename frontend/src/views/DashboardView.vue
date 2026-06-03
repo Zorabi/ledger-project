@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Search } from 'lucide-vue-next'
+import { Plus, RotateCcw, Search } from 'lucide-vue-next'
 
 defineProps<{
   stats: any
@@ -9,7 +9,10 @@ defineProps<{
   records: any[]
   occasionTypeOptions: any[]
   handlerOptions: any[]
+  relatedRecordOptions: any[]
   recordColumns: any[]
+  recordsLoading: boolean
+  saving: boolean
   money: (cents?: number) => string
   dictionaryLabel: (typeCode: string, value: string) => string
   directionText: (value: string) => string
@@ -20,10 +23,13 @@ defineProps<{
 
 const emit = defineEmits<{
   query: []
+  reset: []
   setRange: [range: string]
   setRecordDirection: [direction: string]
+  setRecordReciprocityStatus: [status: string]
   saveRecord: []
   editRecord: [record: any]
+  reciprocityRecord: [record: any]
   deleteRecord: [record: any]
 }>()
 </script>
@@ -31,25 +37,27 @@ const emit = defineEmits<{
 <template>
   <section class="view-stack">
     <n-card title="时间范围" size="small">
-      <div class="filter-grid time-filter">
-        <n-select
-          :value="query.range"
-          :options="[
-            { label: '全部时间', value: 'all' },
-            { label: '本月', value: 'month' },
-            { label: '本年', value: 'year' },
-            { label: '近30天', value: 'last30' },
-            { label: '自定义', value: 'custom' }
-          ]"
-          placeholder="选择时间维度"
-          @update:value="(value: string) => emit('setRange', value)"
-        />
-        <n-date-picker v-model:formatted-value="query.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" @update:formatted-value="query.range = 'custom'" />
-        <n-date-picker v-model:formatted-value="query.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" @update:formatted-value="query.range = 'custom'" />
-        <n-button type="primary" class="query-button" @click="emit('query')">
-          <template #icon><Search :size="16" /></template>
-          查询
-        </n-button>
+      <div class="filter-bar">
+        <div class="filter-fields time-filter">
+          <n-select
+            :value="query.range"
+            :options="[
+              { label: '全部时间', value: 'all' },
+              { label: '本月', value: 'month' },
+              { label: '本年', value: 'year' },
+              { label: '近30天', value: 'last30' },
+              { label: '自定义', value: 'custom' }
+            ]"
+            placeholder="选择时间维度"
+            @update:value="(value: string) => emit('setRange', value)"
+          />
+          <n-date-picker v-model:formatted-value="query.start_date" value-format="yyyy-MM-dd" type="date" placeholder="开始日期" @update:formatted-value="query.range = 'custom'" />
+          <n-date-picker v-model:formatted-value="query.end_date" value-format="yyyy-MM-dd" type="date" placeholder="结束日期" @update:formatted-value="query.range = 'custom'" />
+        </div>
+        <div class="filter-actions">
+          <n-button type="primary" class="query-button" @click="emit('query')"><template #icon><Search :size="16" /></template>查询</n-button>
+          <n-button secondary class="filter-action-button" @click="emit('reset')"><template #icon><RotateCcw :size="16" /></template>重置</n-button>
+        </div>
       </div>
     </n-card>
 
@@ -78,12 +86,28 @@ const emit = defineEmits<{
             </div>
           </n-form-item>
           <div class="form-row">
-            <n-form-item label="金额"><n-input-number v-model:value="recordForm.amount_yuan" :min="0" :step="50" /></n-form-item>
+            <n-form-item label="金额"><n-input-number v-model:value="recordForm.amount_yuan" :min="0" :step="100" /></n-form-item>
             <n-form-item label="日期"><n-date-picker v-model:formatted-value="recordForm.occurred_on" value-format="yyyy-MM-dd" type="date" :clearable="false" /></n-form-item>
           </div>
           <n-form-item label="经办人"><n-select v-model:value="recordForm.handled_by" clearable filterable tag :options="handlerOptions" placeholder="请选择或输入经办人" /></n-form-item>
-          <n-form-item label="备注"><n-input v-model:value="recordForm.remark" type="textarea" placeholder="请输入礼品说明、回礼安排或其他备注" /></n-form-item>
-          <n-button type="primary" block @click="emit('saveRecord')">
+          <n-form-item label="回礼状态">
+            <n-select
+              :value="recordForm.reciprocity_status"
+              :options="[
+                { label: '无需回礼', value: 'none' },
+                { label: '待回礼', value: 'pending' },
+                { label: '已回礼', value: 'done' }
+              ]"
+              placeholder="请选择回礼状态"
+              @update:value="(value: string) => emit('setRecordReciprocityStatus', value)"
+            />
+          </n-form-item>
+          <n-form-item v-if="recordForm.reciprocity_status === 'done'" :label="`关联${reciprocityRoleText(recordForm.direction)}流水`">
+            <n-select v-model:value="recordForm.related_record_id" clearable filterable :options="relatedRecordOptions" :placeholder="`请选择${reciprocityRoleText(recordForm.direction)}对应的反向流水`" />
+          </n-form-item>
+          <n-form-item label="礼品说明"><n-input v-model:value="recordForm.gift_description" type="textarea" placeholder="请输入礼品名称、数量或其他说明" /></n-form-item>
+          <n-form-item label="备注"><n-input v-model:value="recordForm.remark" type="textarea" placeholder="请输入备注" /></n-form-item>
+          <n-button type="primary" block :loading="saving" :disabled="saving" @click="emit('saveRecord')">
             <template #icon><Plus :size="18" /></template>
             保存流水
           </n-button>
@@ -91,7 +115,7 @@ const emit = defineEmits<{
       </n-card>
 
       <n-card title="最近流水" size="small">
-        <n-data-table class="desktop-table" :columns="recordColumns" :data="records.slice(0, 8)" size="small" />
+        <n-data-table class="desktop-table" :columns="recordColumns" :data="records.slice(0, 8)" :loading="recordsLoading" size="small" />
         <div class="mobile-list">
           <article v-for="record in records.slice(0, 8)" :key="record.id" class="mobile-item">
             <div class="item-main">
@@ -99,9 +123,11 @@ const emit = defineEmits<{
               <n-tag size="small" :type="record.direction === 'in' ? 'success' : 'warning'">{{ directionText(record.direction) }}</n-tag>
             </div>
             <p>{{ dictionaryLabel('occasion_type', record.occasion_type) }} · {{ money(record.amount_cents) }}</p>
+            <p v-if="record.remark || record.gift_description" class="item-note">{{ record.remark || record.gift_description }}</p>
             <small>{{ formatDate(record.occurred_on) }} · {{ statusText(record.reciprocity_status) }}<template v-if="record.reciprocity_status === 'done'">（{{ reciprocityRoleText(record.direction) }}）</template></small>
             <div class="item-actions">
               <n-button size="small" secondary @click="emit('editRecord', record)">编辑</n-button>
+              <n-button v-if="record.reciprocity_status === 'pending'" size="small" secondary type="success" @click="emit('reciprocityRecord', record)">回礼</n-button>
               <n-popconfirm @positive-click="emit('deleteRecord', record)">
                 <template #trigger><n-button size="small" secondary type="error">删除</n-button></template>
                 确认删除这条流水？

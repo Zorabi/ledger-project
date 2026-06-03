@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,7 +19,44 @@ func (h *AppHandler) ListContacts(c *gin.Context) {
 	q := h.db.Preload("OwnerUser").Model(&models.Contact{})
 	q = scopeFamily(q, auth, c.Query("family_id"))
 	if keyword := c.Query("keyword"); keyword != "" {
-		q = q.Where("name ILIKE ? OR phone ILIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+		like := "%" + keyword + "%"
+		q = q.Where("name ILIKE ? OR phone ILIKE ? OR address ILIKE ? OR remark ILIKE ?", like, like, like, like)
+	}
+	if contactType := c.Query("contact_type"); contactType != "" {
+		q = q.Where("contact_type = ?", contactType)
+	}
+	if relationType := c.Query("relation_type"); relationType != "" {
+		q = q.Where("relation_type = ?", relationType)
+	}
+	if ownerUserID := c.Query("owner_user_id"); ownerUserID != "" {
+		q = q.Where("owner_user_id = ?", ownerUserID)
+	}
+	if status := c.Query("status"); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if hasOwner := c.Query("has_owner"); hasOwner != "" {
+		if hasOwner == "true" {
+			q = q.Where("owner_user_id IS NOT NULL")
+		} else if hasOwner == "false" {
+			q = q.Where("owner_user_id IS NULL")
+		}
+	}
+	if hasPhone := c.Query("has_phone"); hasPhone != "" {
+		if hasPhone == "true" {
+			q = q.Where("phone <> ''")
+		} else if hasPhone == "false" {
+			q = q.Where("phone = ''")
+		}
+	}
+	if startDate := c.Query("created_start"); startDate != "" {
+		if t, err := time.Parse("2006-01-02", startDate); err == nil {
+			q = q.Where("created_at >= ?", t)
+		}
+	}
+	if endDate := c.Query("created_end"); endDate != "" {
+		if t, err := time.Parse("2006-01-02", endDate); err == nil {
+			q = q.Where("created_at < ?", t.AddDate(0, 0, 1))
+		}
 	}
 	var items []models.Contact
 	page(c, q.Order("id desc"), &items)

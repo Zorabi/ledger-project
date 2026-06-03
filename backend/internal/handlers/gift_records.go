@@ -19,18 +19,42 @@ func (h *AppHandler) ListGiftRecords(c *gin.Context) {
 		return
 	}
 	q := h.db.Preload("Contact").Model(&models.GiftRecord{})
-	q = scopeFamily(q, auth, c.Query("family_id"))
+	q = scopeGiftRecords(q, auth, c.Query("family_id"))
 	if direction := c.Query("direction"); direction != "" {
 		q = q.Where("direction = ?", direction)
 	}
 	if contactID := c.Query("contact_id"); contactID != "" {
 		q = q.Where("contact_id = ?", contactID)
 	}
+	contactJoined := false
+	joinContact := func() {
+		if contactJoined {
+			return
+		}
+		q = q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id")
+		contactJoined = true
+	}
+	if ownerUserID := c.Query("owner_user_id"); ownerUserID != "" {
+		joinContact()
+		q = q.Where("contacts.owner_user_id = ?", ownerUserID)
+	}
+	if contactType := c.Query("contact_type"); contactType != "" {
+		joinContact()
+		q = q.Where("contacts.contact_type = ?", contactType)
+	}
+	if relationType := c.Query("relation_type"); relationType != "" {
+		joinContact()
+		q = q.Where("contacts.relation_type = ?", relationType)
+	}
 	if occasionType := c.Query("occasion_type"); occasionType != "" {
 		q = q.Where("occasion_type = ?", occasionType)
 	}
 	if reciprocityStatus := c.Query("reciprocity_status"); reciprocityStatus != "" {
 		q = q.Where("reciprocity_status = ?", reciprocityStatus)
+	}
+	if remark := c.Query("remark"); remark != "" {
+		keyword := "%" + remark + "%"
+		q = q.Where("(remark ILIKE ? OR gift_description ILIKE ?)", keyword, keyword)
 	}
 	if startDate := c.Query("start_date"); startDate != "" {
 		if t, err := time.Parse("2006-01-02", startDate); err == nil {

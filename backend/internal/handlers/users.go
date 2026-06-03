@@ -24,6 +24,19 @@ func (h *AppHandler) ListUsers(c *gin.Context) {
 		}
 		q = q.Where("family_id = ?", *auth.FamilyID)
 	}
+	if keyword := c.Query("keyword"); keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("username ILIKE ? OR display_name ILIKE ? OR email ILIKE ?", like, like, like)
+	}
+	if role := c.Query("role"); role != "" {
+		q = q.Where("role = ?", models.NormalizeRole(role))
+	}
+	if status := c.Query("status"); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if familyID := c.Query("family_id"); familyID != "" && auth.Role == models.RoleSuperAdmin {
+		q = q.Where("family_id = ?", familyID)
+	}
 	page(c, q.Order("id desc"), &users)
 }
 
