@@ -9,7 +9,7 @@ import type { PageResult, SessionUser, ViewKey } from '../shared/types'
 
 export function useLedgerApp() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.2.0'
+  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.3.0'
   const FAMILY_CACHE_KEY = 'ledger_families_cache'
   const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -59,6 +59,7 @@ export function useLedgerApp() {
   const resetPasswordForm = reactive({ password: '' })
   const contactForm = reactive({ name: '', owner_user_id: null as number | null, contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
   const recordForm = reactive({ contact_id: null as number | null, occasion_type: '', direction: 'in', amount_yuan: 200, gift_description: '', occurred_on: new Date().toISOString().slice(0, 10), handled_by: '', reciprocity_status: 'pending', related_record_id: null as number | null, remark: '' })
+  const recordDialogForm = reactive({ contact_id: null as number | null, occasion_type: '', direction: 'in', amount_yuan: 200, gift_description: '', occurred_on: new Date().toISOString().slice(0, 10), handled_by: '', reciprocity_status: 'pending', related_record_id: null as number | null, remark: '' })
   const dictForm = reactive({ type_id: null as number | null, label: '', value: '', sort_order: 0, enabled: true })
   const dictTypeForm = reactive({ code: '', name: '', description: '', allow_family_custom: true, sort_order: 0, enabled: true })
   const backupForm = reactive({ enabled: false, frequency: 'weekly', recipient_emails_text: '', encrypt_enabled: false, zip_password: '', zip_password_hint: '' })
@@ -98,6 +99,25 @@ export function useLedgerApp() {
   let sessionExpiredPrompting = false
   const { api, downloadBlob } = createApiClient(API_BASE, () => token.value, handleSessionExpired)
   let viewLoadSeq = 0
+
+  function defaultRecordFormValues() {
+    return {
+      contact_id: null as number | null,
+      occasion_type: occasionTypeOptions.value?.[0]?.value || '',
+      direction: 'in',
+      amount_yuan: 200,
+      gift_description: '',
+      occurred_on: new Date().toISOString().slice(0, 10),
+      handled_by: user.value?.display_name || '',
+      reciprocity_status: 'pending',
+      related_record_id: null as number | null,
+      remark: ''
+    }
+  }
+
+  function activeRecordForm() {
+    return showRecordModal.value ? recordDialogForm : recordForm
+  }
 
   async function withTableLoading<T>(key: string, task: () => Promise<T>) {
     tableLoadingCounts[key] = (tableLoadingCounts[key] || 0) + 1
@@ -160,7 +180,10 @@ export function useLedgerApp() {
   const occasionTypeOptions = computed(() => dictOptions('occasion_type'))
   const relatedRecordOptions = computed(() =>
     relatedRecords.value
-      .filter((item) => item.id !== editingRecordId.value && (!recordForm.contact_id || item.contact_id === recordForm.contact_id) && item.direction !== recordForm.direction)
+      .filter((item) => {
+        const form = activeRecordForm()
+        return item.id !== editingRecordId.value && (!form.contact_id || item.contact_id === form.contact_id) && item.direction !== form.direction
+      })
       .map((item) => ({
         label: `${formatDate(item.occurred_on)} · ${reciprocityRelationText(item.direction)} · ${item.contact?.name || item.contact_id} · ${money(item.amount_cents)}`,
         value: item.id
@@ -549,14 +572,14 @@ export function useLedgerApp() {
     })
   }
 
-  async function loadRelatedRecords() {
-    if (recordForm.reciprocity_status !== 'done') {
+  async function loadRelatedRecords(form = activeRecordForm()) {
+    if (form.reciprocity_status !== 'done') {
       relatedRecords.value = []
       return
     }
     const params = new URLSearchParams({ page: '1', page_size: '1000' })
-    if (recordForm.contact_id) params.set('contact_id', String(recordForm.contact_id))
-    if (recordForm.direction) params.set('direction', recordForm.direction === 'in' ? 'out' : 'in')
+    if (form.contact_id) params.set('contact_id', String(form.contact_id))
+    if (form.direction) params.set('direction', form.direction === 'in' ? 'out' : 'in')
     if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
     const query = params.toString()
     await latestOnly('related-records', () => api<PageResult<any>>(`/gift-records?${query}`), (data) => {
@@ -825,24 +848,23 @@ export function useLedgerApp() {
         await api('/contacts', { method: 'POST', body: JSON.stringify(payload) })
         message.success('对象已保存')
       }
-      Object.assign(contactForm, { name: '', owner_user_id: null, contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
-      editingContactId.value = null
-      showContactModal.value = false
+      closeContactModal()
       await Promise.all([loadContacts(), loadContactOptions(), loadRecords(), loadStats()])
     } finally {
       contactSaving.value = false
     }
   }
 
-  async function createRecord(options: { keepDraft?: boolean } = {}) {
+  async function createRecord(options: { keepDraft?: boolean; form?: typeof recordForm } = {}) {
+    const form = options.form || recordForm
     if (recordSaving.value) return
-    if (!recordForm.contact_id || !recordForm.occasion_type || !recordForm.direction || !recordForm.occurred_on) {
+    if (!form.contact_id || !form.occasion_type || !form.direction || !form.occurred_on) {
       message.warning('请完整填写往来对象、事项类型、方向和日期')
       return
     }
     recordSaving.value = true
     try {
-      const payload = { ...recordForm, family_id: currentFamilyId.value, amount_cents: Math.round(Number(recordForm.amount_yuan || 0) * 100) }
+      const payload = { ...form, family_id: currentFamilyId.value, amount_cents: Math.round(Number(form.amount_yuan || 0) * 100) }
       let savedRecord: any
       if (editingRecordId.value) {
         savedRecord = await api(`/gift-records/${editingRecordId.value}`, { method: 'PUT', body: JSON.stringify(payload) })
@@ -856,6 +878,8 @@ export function useLedgerApp() {
       editingRecordId.value = null
       if (options.keepDraft) {
         clearQuickRecordTarget()
+      } else if (form === recordDialogForm) {
+        resetRecordDialogForm()
       } else {
         resetRecordForm()
       }
@@ -867,7 +891,11 @@ export function useLedgerApp() {
 
   async function createQuickRecord() {
     editingRecordId.value = null
-    await createRecord({ keepDraft: quickRecordKeepDraft.value })
+    await createRecord({ keepDraft: quickRecordKeepDraft.value, form: recordForm })
+  }
+
+  async function createDialogRecord() {
+    await createRecord({ form: recordDialogForm })
   }
 
   async function createDictionaryItem() {
@@ -1144,6 +1172,12 @@ export function useLedgerApp() {
     showContactModal.value = true
   }
 
+  function closeContactModal() {
+    showContactModal.value = false
+    editingContactId.value = null
+    Object.assign(contactForm, { name: '', owner_user_id: null, contact_type: '', relation_type: '', phone: '', address: '', remark: '', status: 'enabled' })
+  }
+
   async function deleteContact(row: any) {
     await api(`/contacts/${row.id}`, { method: 'DELETE' })
     message.success('对象已删除')
@@ -1152,15 +1186,15 @@ export function useLedgerApp() {
 
   function openCreateRecord() {
     editingRecordId.value = null
-    resetRecordForm()
-    void loadRelatedRecords()
+    resetRecordDialogForm()
+    void loadRelatedRecords(recordDialogForm)
     showRecordModal.value = true
   }
 
   function openEditRecord(row: any) {
     editingRecordId.value = row.id
     hydratingRecordForm = true
-    Object.assign(recordForm, {
+    Object.assign(recordDialogForm, {
       contact_id: row.contact_id,
       occasion_type: row.occasion_type,
       direction: row.direction,
@@ -1175,7 +1209,7 @@ export function useLedgerApp() {
     nextTick(() => {
       hydratingRecordForm = false
     })
-    void loadRelatedRecords()
+    void loadRelatedRecords(recordDialogForm)
     showRecordModal.value = true
   }
 
@@ -1183,7 +1217,7 @@ export function useLedgerApp() {
     editingRecordId.value = null
     const nextDirection = row.direction === 'in' ? 'out' : 'in'
     hydratingRecordForm = true
-    Object.assign(recordForm, {
+    Object.assign(recordDialogForm, {
       contact_id: row.contact_id,
       occasion_type: row.occasion_type,
       direction: nextDirection,
@@ -1199,8 +1233,14 @@ export function useLedgerApp() {
       hydratingRecordForm = false
     })
     relatedRecords.value = [row]
-    void loadRelatedRecords()
+    void loadRelatedRecords(recordDialogForm)
     showRecordModal.value = true
+  }
+
+  function closeRecordModal() {
+    showRecordModal.value = false
+    editingRecordId.value = null
+    resetRecordDialogForm()
   }
 
   async function deleteRecord(row: any) {
@@ -1210,7 +1250,12 @@ export function useLedgerApp() {
   }
 
   function resetRecordForm() {
-    Object.assign(recordForm, { contact_id: null, occasion_type: occasionTypeOptions.value[0]?.value || '', direction: 'in', amount_yuan: 200, gift_description: '', occurred_on: new Date().toISOString().slice(0, 10), handled_by: user.value?.display_name || '', reciprocity_status: 'pending', related_record_id: null, remark: '' })
+    Object.assign(recordForm, defaultRecordFormValues())
+  }
+
+  function resetRecordDialogForm() {
+    Object.assign(recordDialogForm, defaultRecordFormValues())
+    relatedRecords.value = []
   }
 
   function clearQuickRecordTarget() {
@@ -1220,19 +1265,21 @@ export function useLedgerApp() {
   }
 
   function setRecordDirection(direction: string) {
-    if (recordForm.direction !== direction) {
-      recordForm.related_record_id = null
+    const form = activeRecordForm()
+    if (form.direction !== direction) {
+      form.related_record_id = null
     }
-    recordForm.direction = direction
-    void loadRelatedRecords()
+    form.direction = direction
+    void loadRelatedRecords(form)
   }
 
   function setRecordReciprocityStatus(status: string) {
+    const form = activeRecordForm()
     if (status !== 'done') {
-      recordForm.related_record_id = null
+      form.related_record_id = null
     }
-    recordForm.reciprocity_status = status
-    void loadRelatedRecords()
+    form.reciprocity_status = status
+    void loadRelatedRecords(form)
   }
 
   function openCreateDict() {
@@ -1365,9 +1412,14 @@ export function useLedgerApp() {
   })
   watch(() => menuItems.value.map((item) => item.key).join(','), scrollActiveMobileNavIntoView)
   watch(() => recordForm.contact_id, () => {
-    if (hydratingRecordForm) return
+    if (hydratingRecordForm || showRecordModal.value) return
     recordForm.related_record_id = null
-    void loadRelatedRecords()
+    void loadRelatedRecords(recordForm)
+  })
+  watch(() => recordDialogForm.contact_id, () => {
+    if (hydratingRecordForm || !showRecordModal.value) return
+    recordDialogForm.related_record_id = null
+    void loadRelatedRecords(recordDialogForm)
   })
   async function bootApp() {
     await loadVersion()
@@ -1400,6 +1452,8 @@ export function useLedgerApp() {
     canEditDictionaryItem,
     changePassword,
     clearLoadedViews,
+    closeContactModal,
+    closeRecordModal,
     contactColumns,
     contactForm,
     contactOptions,
@@ -1410,6 +1464,7 @@ export function useLedgerApp() {
     copyGeneratedPassword,
     copyText,
     createContact,
+    createDialogRecord,
     createDictionaryItem,
     createDictionaryType,
     createFamily,
@@ -1527,6 +1582,7 @@ export function useLedgerApp() {
     dashboardRecordColumns,
     quickRecordKeepDraft,
     recordColumns,
+    recordDialogForm,
     recordForm,
     recordQuery,
     records,

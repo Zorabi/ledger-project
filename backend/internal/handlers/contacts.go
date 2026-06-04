@@ -1,15 +1,20 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"ledger-backend/internal/middleware"
 	"ledger-backend/internal/models"
 )
+
+var errContactNameExists = errors.New("contact name already exists")
 
 func (h *AppHandler) ListContacts(c *gin.Context) {
 	auth, okAuth := middleware.RequireFamily(c)
@@ -76,11 +81,30 @@ func (h *AppHandler) CreateContact(c *gin.Context) {
 	}
 	req.CreatedBy = auth.UserID
 	req.Status = defaultString(req.Status, models.StatusEnabled)
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		fail(c, http.StatusBadRequest, "往来对象名称不能为空")
+		return
+	}
 	if !h.userBelongsToFamily(req.OwnerUserID, req.FamilyID) {
 		fail(c, http.StatusBadRequest, "归属成员不属于当前家庭")
 		return
 	}
-	if err := h.db.Create(&req).Error; err != nil {
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		normalizedName := normalizeContactName(req.Name)
+		if err := lockContactName(tx, req.FamilyID, normalizedName); err != nil {
+			return err
+		}
+		if contactNameTaken(tx, req.FamilyID, normalizedName, 0) {
+			return errContactNameExists
+		}
+		return tx.Create(&req).Error
+	})
+	if err != nil {
+		if errors.Is(err, errContactNameExists) {
+			fail(c, http.StatusBadRequest, "同家庭下已存在相同名称的往来对象")
+			return
+		}
 		fail(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -113,7 +137,29 @@ func (h *AppHandler) UpdateContact(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "归属成员不属于当前家庭")
 		return
 	}
-	h.db.Model(&item).Updates(map[string]any{"owner_user_id": req.OwnerUserID, "name": req.Name, "contact_type": req.ContactType, "relation_type": req.RelationType, "phone": req.Phone, "address": req.Address, "remark": req.Remark, "status": req.Status})
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		fail(c, http.StatusBadRequest, "往来对象名称不能为空")
+		return
+	}
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		normalizedName := normalizeContactName(req.Name)
+		if err := lockContactName(tx, item.FamilyID, normalizedName); err != nil {
+			return err
+		}
+		if contactNameTaken(tx, item.FamilyID, normalizedName, item.ID) {
+			return errContactNameExists
+		}
+		return tx.Model(&item).Updates(map[string]any{"owner_user_id": req.OwnerUserID, "name": req.Name, "contact_type": req.ContactType, "relation_type": req.RelationType, "phone": req.Phone, "address": req.Address, "remark": req.Remark, "status": req.Status}).Error
+	})
+	if err != nil {
+		if errors.Is(err, errContactNameExists) {
+			fail(c, http.StatusBadRequest, "同家庭下已存在相同名称的往来对象")
+			return
+		}
+		fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	h.audit(c, &item.FamilyID, &auth.UserID, "update_contact", "contact", strconv.Itoa(int(item.ID)), true, nil)
 	ok(c, item)
 }
@@ -141,6 +187,25 @@ func (h *AppHandler) userBelongsToFamily(userID *uint, familyID uint) bool {
 	}
 	var count int64
 	h.db.Model(&models.User{}).Where("id = ? AND family_id = ?", *userID, familyID).Count(&count)
+	return count > 0
+}
+
+func normalizeContactName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func lockContactName(db *gorm.DB, familyID uint, normalizedName string) error {
+	lockKey := strconv.Itoa(int(familyID)) + ":" + normalizedName
+	return db.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", lockKey).Error
+}
+
+func contactNameTaken(db *gorm.DB, familyID uint, normalizedName string, excludeID uint) bool {
+	var count int64
+	q := db.Model(&models.Contact{}).Where("family_id = ? AND LOWER(BTRIM(name)) = ?", familyID, normalizedName)
+	if excludeID > 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	q.Count(&count)
 	return count > 0
 }
 

@@ -39,6 +39,8 @@ const {
   canEditDictionaryItem,
   changePassword,
   clearLoadedViews,
+  closeContactModal,
+  closeRecordModal,
   contactColumns,
   contactForm,
   contactOptions,
@@ -49,11 +51,11 @@ const {
   copyGeneratedPassword,
   copyText,
   createContact,
+  createDialogRecord,
   createDictionaryItem,
   createDictionaryType,
   createFamily,
   createQuickRecord,
-  createRecord,
   createUser,
   currentFamilyId,
   dashboardRecords,
@@ -165,6 +167,7 @@ const {
   dashboardRecordColumns,
   quickRecordKeepDraft,
   recordColumns,
+  recordDialogForm,
   recordForm,
   recordQuery,
   records,
@@ -648,7 +651,7 @@ const {
             </n-form>
           </n-modal>
 
-          <n-modal v-model:show="showContactModal" preset="card" :title="editingContactId ? '编辑往来对象' : '新增往来对象'" class="form-modal">
+          <n-modal :show="showContactModal" preset="card" :title="editingContactId ? '编辑往来对象' : '新增往来对象'" class="form-modal" @update:show="(value: boolean) => { if (!value) closeContactModal() }">
             <n-form label-placement="top">
               <n-form-item label="名称"><n-input v-model:value="contactForm.name" placeholder="请输入姓名、家庭或单位名称" /></n-form-item>
               <n-form-item label="归属成员"><n-select v-model:value="contactForm.owner_user_id" clearable filterable :options="familyMemberOptions" placeholder="请选择该对象属于哪位家庭成员" /></n-form-item>
@@ -658,38 +661,44 @@ const {
               <n-form-item label="地址"><n-input v-model:value="contactForm.address" placeholder="请输入地址" /></n-form-item>
               <n-form-item label="状态"><n-select v-model:value="contactForm.status" :options="[{ label: '启用', value: 'enabled' }, { label: '禁用', value: 'disabled' }]" placeholder="请选择状态" /></n-form-item>
               <n-form-item label="备注"><n-input v-model:value="contactForm.remark" type="textarea" placeholder="请输入备注" /></n-form-item>
-              <n-button type="primary" block :loading="contactSaving || actionSubmitting" :disabled="contactSaving || actionSubmitting" @click="runAction(createContact)">保存对象</n-button>
+              <div class="modal-actions">
+                <n-button secondary :disabled="contactSaving || actionSubmitting" @click="closeContactModal">取消</n-button>
+                <n-button type="primary" :loading="contactSaving || actionSubmitting" :disabled="contactSaving || actionSubmitting" @click="runAction(createContact)">保存对象</n-button>
+              </div>
             </n-form>
           </n-modal>
 
-          <n-modal v-model:show="showRecordModal" preset="card" :title="editingRecordId ? '编辑往来流水' : '新增往来流水'" class="form-modal">
+          <n-modal :show="showRecordModal" preset="card" :title="editingRecordId ? '编辑往来流水' : '新增往来流水'" class="form-modal" @update:show="(value: boolean) => { if (!value) closeRecordModal() }">
             <n-form label-placement="top">
-              <n-form-item label="往来对象"><n-select v-model:value="recordForm.contact_id" filterable :options="contactOptions.map((item) => ({ label: item.name, value: item.id }))" placeholder="请选择往来对象" /></n-form-item>
-              <n-form-item label="事项类型"><n-select v-model:value="recordForm.occasion_type" filterable :options="occasionTypeOptions" placeholder="请选择事项类型" /></n-form-item>
+              <n-form-item label="往来对象"><n-select v-model:value="recordDialogForm.contact_id" filterable :options="contactOptions.map((item) => ({ label: item.name, value: item.id }))" placeholder="请选择往来对象" /></n-form-item>
+              <n-form-item label="事项类型"><n-select v-model:value="recordDialogForm.occasion_type" filterable :options="occasionTypeOptions" placeholder="请选择事项类型" /></n-form-item>
               <n-form-item label="往来方向">
                 <div class="direction-choice">
-                  <button type="button" :class="{ active: recordForm.direction === 'in' }" @click="setRecordDirection('in')">
+                  <button type="button" :class="{ active: recordDialogForm.direction === 'in' }" @click="setRecordDirection('in')">
                     <strong>我家收礼</strong>
                     <span>收到对方礼金或礼品</span>
                   </button>
-                  <button type="button" :class="{ active: recordForm.direction === 'out' }" @click="setRecordDirection('out')">
+                  <button type="button" :class="{ active: recordDialogForm.direction === 'out' }" @click="setRecordDirection('out')">
                     <strong>我家送礼</strong>
                     <span>送出礼金或礼品</span>
                   </button>
                 </div>
               </n-form-item>
               <div class="form-row">
-                <n-form-item label="金额"><n-input-number v-model:value="recordForm.amount_yuan" :min="0" :step="100" placeholder="请输入金额（元）" /></n-form-item>
-                <n-form-item label="发生日期"><n-date-picker v-model:formatted-value="recordForm.occurred_on" value-format="yyyy-MM-dd" type="date" :clearable="false" /></n-form-item>
+                <n-form-item label="金额"><n-input-number v-model:value="recordDialogForm.amount_yuan" :min="0" :step="100" placeholder="请输入金额（元）" /></n-form-item>
+                <n-form-item label="发生日期"><n-date-picker v-model:formatted-value="recordDialogForm.occurred_on" value-format="yyyy-MM-dd" type="date" :clearable="false" /></n-form-item>
               </div>
-              <n-form-item label="经办人"><n-select v-model:value="recordForm.handled_by" clearable filterable tag :options="handlerOptions" placeholder="请选择或输入经办人" /></n-form-item>
-              <n-form-item label="回礼状态"><n-select :value="recordForm.reciprocity_status" :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="请选择回礼状态" @update:value="setRecordReciprocityStatus" /></n-form-item>
-              <n-form-item v-if="recordForm.reciprocity_status === 'done'" :label="`关联${reciprocityRoleText(recordForm.direction)}流水`">
-                <n-select v-model:value="recordForm.related_record_id" clearable filterable :options="relatedRecordOptions" :placeholder="`请选择${reciprocityRoleText(recordForm.direction)}对应的反向流水`" />
+              <n-form-item label="经办人"><n-select v-model:value="recordDialogForm.handled_by" clearable filterable tag :options="handlerOptions" placeholder="请选择或输入经办人" /></n-form-item>
+              <n-form-item label="回礼状态"><n-select :value="recordDialogForm.reciprocity_status" :options="[{ label: '无需回礼', value: 'none' }, { label: '待回礼', value: 'pending' }, { label: '已回礼', value: 'done' }]" placeholder="请选择回礼状态" @update:value="setRecordReciprocityStatus" /></n-form-item>
+              <n-form-item v-if="recordDialogForm.reciprocity_status === 'done'" :label="`关联${reciprocityRoleText(recordDialogForm.direction)}流水`">
+                <n-select v-model:value="recordDialogForm.related_record_id" clearable filterable :options="relatedRecordOptions" :placeholder="`请选择${reciprocityRoleText(recordDialogForm.direction)}对应的反向流水`" />
               </n-form-item>
-              <n-form-item label="礼品说明"><n-input v-model:value="recordForm.gift_description" type="textarea" placeholder="请输入礼品名称、数量或其他说明" /></n-form-item>
-              <n-form-item label="备注"><n-input v-model:value="recordForm.remark" type="textarea" placeholder="请输入备注" /></n-form-item>
-              <n-button type="primary" block :loading="recordSaving || actionSubmitting" :disabled="recordSaving || actionSubmitting" @click="runAction(createRecord)">保存流水</n-button>
+              <n-form-item label="礼品说明"><n-input v-model:value="recordDialogForm.gift_description" type="textarea" placeholder="请输入礼品名称、数量或其他说明" /></n-form-item>
+              <n-form-item label="备注"><n-input v-model:value="recordDialogForm.remark" type="textarea" placeholder="请输入备注" /></n-form-item>
+              <div class="modal-actions">
+                <n-button secondary :disabled="recordSaving || actionSubmitting" @click="closeRecordModal">取消</n-button>
+                <n-button type="primary" :loading="recordSaving || actionSubmitting" :disabled="recordSaving || actionSubmitting" @click="runAction(createDialogRecord)">保存流水</n-button>
+              </div>
             </n-form>
           </n-modal>
 

@@ -1,5 +1,5 @@
 import { h } from 'vue'
-import { NButton, NPopconfirm, type DataTableColumns } from 'naive-ui'
+import { NButton, NPopconfirm, NTooltip, type DataTableColumns } from 'naive-ui'
 import { createAuditColumns } from '../../entities/audit/model'
 import { boolText, directionText, formatDate, formatDateTime, money, reciprocityRoleText, statusText } from '../../shared/lib/formatters'
 
@@ -40,6 +40,14 @@ function deleteAction(label: string, message: string, onPositiveClick: () => voi
 
 function actionSpace(children: any[]) {
   return h('div', { class: 'table-actions' }, children)
+}
+
+function tooltipText(value?: string) {
+  const text = value || '-'
+  return h(NTooltip, { showAfter: 80, hideAfter: 80 }, {
+    trigger: () => h('span', { class: 'table-ellipsis' }, text),
+    default: () => text
+  })
 }
 
 function recordActionSpace(row: any, actions: TableColumnActions) {
@@ -95,7 +103,8 @@ function createRecordColumns(actions: TableColumnActions, helpers: DictionaryHel
     { title: '方向', key: 'direction', width: 84, render: (row) => directionText(row.direction) },
     { title: '金额', key: 'amount_cents', width: 110, render: (row) => money(row.amount_cents) },
     { title: '回礼状态', key: 'reciprocity_status', width: 150, render: (row) => row.reciprocity_status === 'done' ? `${statusText(row.reciprocity_status)}（${reciprocityRoleText(row.direction)}）` : statusText(row.reciprocity_status) },
-    { title: '备注', key: 'remark', width: 180, ellipsis: true, render: (row) => row.remark || row.gift_description || '-' },
+    { title: '礼品说明', key: 'gift_description', width: 180, ellipsis: true, render: (row) => tooltipText(row.gift_description) },
+    { title: '备注', key: 'remark', width: 180, ellipsis: true, render: (row) => tooltipText(row.remark) },
     { title: '创建时间', key: 'created_at', width: 180, render: (row) => formatDateTime(row.created_at) },
     {
       title: '操作',

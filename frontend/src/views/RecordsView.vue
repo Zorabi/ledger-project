@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Plus, RotateCcw, Search } from 'lucide-vue-next'
+import MobilePager from '../components/MobilePager.vue'
 
 defineProps<{
   query: any
@@ -68,7 +69,8 @@ function reloadFromFirstPage(query: any) {
         <article v-for="record in records" :key="record.id" class="mobile-item">
           <div class="item-main"><strong>{{ record.contact?.name || record.contact_id }}</strong><n-tag size="small" :type="record.direction === 'in' ? 'success' : 'warning'">{{ directionText(record.direction) }}</n-tag></div>
           <p>{{ dictionaryLabel('occasion_type', record.occasion_type) }} · {{ money(record.amount_cents) }}</p>
-          <p v-if="record.remark || record.gift_description" class="item-note">{{ record.remark || record.gift_description }}</p>
+          <p v-if="record.gift_description" class="item-note">礼品说明：{{ record.gift_description }}</p>
+          <p v-if="record.remark" class="item-note">备注：{{ record.remark }}</p>
           <small>{{ formatDate(record.occurred_on) }} · {{ statusText(record.reciprocity_status) }}<template v-if="record.reciprocity_status === 'done'">（{{ reciprocityRoleText(record.direction) }}）</template></small>
           <div class="item-actions">
             <n-button size="small" secondary @click="emit('edit', record)">编辑</n-button>
@@ -86,10 +88,11 @@ function reloadFromFirstPage(query: any) {
         :item-count="query.total"
         :page-sizes="[10, 20, 50]"
         show-size-picker
-        class="pager"
+        class="pager desktop-pager"
         @update:page="emit('loadRecords')"
         @update:page-size="() => reloadFromFirstPage(query)"
       />
+      <MobilePager :query="query" @load="emit('loadRecords')" />
     </n-card>
   </section>
 </template>

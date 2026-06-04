@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArchiveRestore, Download, Upload } from 'lucide-vue-next'
+import MobilePager from '../components/MobilePager.vue'
 
 withDefaults(defineProps<{
   query: any
@@ -65,10 +66,11 @@ function reloadFromFirstPage(query: any) {
         :item-count="query.total"
         :page-sizes="[10, 20, 50]"
         show-size-picker
-        class="pager"
+        class="pager desktop-pager"
         @update:page="emit('load')"
         @update:page-size="() => reloadFromFirstPage(query)"
       />
+      <MobilePager :query="query" @load="emit('load')" />
     </n-card>
   </section>
 </template>

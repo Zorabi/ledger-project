@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Plus, RotateCcw, Search } from 'lucide-vue-next'
+import MobilePager from '../components/MobilePager.vue'
 
 defineProps<{
   query: any
@@ -95,10 +96,11 @@ function reloadFromFirstPage(query: any) {
         :item-count="query.total"
         :page-sizes="[10, 20, 50]"
         show-size-picker
-        class="pager"
+        class="pager desktop-pager"
         @update:page="emit('load')"
         @update:page-size="() => reloadFromFirstPage(query)"
       />
+      <MobilePager :query="query" @load="emit('load')" />
     </n-card>
   </section>
 </template>
