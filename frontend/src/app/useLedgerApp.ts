@@ -9,7 +9,7 @@ import type { PageResult, SessionUser, ViewKey } from '../shared/types'
 
 export function useLedgerApp() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.3.0'
+  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.0.0'
   const FAMILY_CACHE_KEY = 'ledger_families_cache'
   const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -79,12 +79,16 @@ export function useLedgerApp() {
   const importJobs = ref<any[]>([])
   const importErrors = ref<any[]>([])
   const stats = ref<any>(null)
+  const receivables = ref<any>(null)
+  const payables = ref<any>(null)
   const backupConfig = ref<any>(null)
   const familyListQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', status: null as string | null })
   const userQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', role: null as string | null, status: null as string | null, family_id: null as number | null })
   const contactQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', contact_type: null as string | null, relation_type: null as string | null, owner_user_id: null as number | null, status: null as string | null, has_owner: null as boolean | null, has_phone: null as boolean | null })
   const recordQuery = reactive({ page: 1, page_size: 10, total: 0, contact_id: null as number | null, owner_user_id: null as number | null, contact_type: null as string | null, relation_type: null as string | null, direction: null as string | null, occasion_type: null as string | null, reciprocity_status: null as string | null, reciprocity_unlinked: null as boolean | null, remark: '', start_date: null as string | null, end_date: null as string | null })
   const statsQuery = reactive({ range: 'all', start_date: null as string | null, end_date: null as string | null })
+  const receivableQuery = reactive({ page: 1, page_size: 10, total: 0, range: 'all', start_date: null as string | null, end_date: null as string | null })
+  const payableQuery = reactive({ page: 1, page_size: 10, total: 0, range: 'all', start_date: null as string | null, end_date: null as string | null })
   const backupQuery = reactive({ page: 1, page_size: 10, total: 0 })
   const importQuery = reactive({ page: 1, page_size: 10, total: 0 })
   const auditQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', action: '', success: null as boolean | null })
@@ -349,6 +353,7 @@ export function useLedgerApp() {
     viewError.value = ''
     if (isSuperAdmin.value && !currentFamilyId.value && ['backup', 'imports'].includes(view)) {
       viewError.value = '请先在顶部选择一个家庭，再使用该功能。'
+      message.warning(viewError.value)
       backupJobs.value = []
       importJobs.value = []
       importErrors.value = []
@@ -371,6 +376,10 @@ export function useLedgerApp() {
         await loadDictionaries()
       } else if (view === 'stats') {
         await loadStats()
+      } else if (view === 'receivables') {
+        await loadReceivables()
+      } else if (view === 'payables') {
+        await loadPayables()
       } else if (view === 'backup') {
         await loadBackup()
       } else if (view === 'imports') {
@@ -382,6 +391,7 @@ export function useLedgerApp() {
       return true
     } catch (error: any) {
       if (seq !== viewLoadSeq) return false
+      if (error?.unauthorized) return false
       viewError.value = error?.message || '页面加载失败'
       message.error(viewError.value)
       return false
@@ -589,32 +599,66 @@ export function useLedgerApp() {
     if (statsQuery.end_date) params.set('end_date', statsQuery.end_date)
   }
 
+  function appendReceivableQueryParams(params: URLSearchParams) {
+    params.set('page', String(receivableQuery.page))
+    params.set('page_size', String(receivableQuery.page_size))
+    if (receivableQuery.start_date) params.set('start_date', receivableQuery.start_date)
+    if (receivableQuery.end_date) params.set('end_date', receivableQuery.end_date)
+  }
+
+  function appendPayableQueryParams(params: URLSearchParams) {
+    params.set('page', String(payableQuery.page))
+    params.set('page_size', String(payableQuery.page_size))
+    if (payableQuery.start_date) params.set('start_date', payableQuery.start_date)
+    if (payableQuery.end_date) params.set('end_date', payableQuery.end_date)
+  }
+
   async function applyStatsQuery() {
     await Promise.all([loadStats(), activeView.value === 'dashboard' ? loadDashboardRecords() : Promise.resolve()])
   }
 
-  function setStatsRange(range: string) {
-    statsQuery.range = range
+  async function applyReceivableQuery() {
+    await loadReceivables()
+  }
+
+  async function applyPayableQuery() {
+    await loadPayables()
+  }
+
+  function applyDateRange(query: { range: string; start_date: string | null; end_date: string | null }, range: string) {
+    query.range = range
     const today = new Date()
     const toDate = (date: Date) => {
       const pad = (n: number) => String(n).padStart(2, '0')
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
     }
     if (range === 'all') {
-      statsQuery.start_date = null
-      statsQuery.end_date = null
+      query.start_date = null
+      query.end_date = null
     } else if (range === 'month') {
-      statsQuery.start_date = toDate(new Date(today.getFullYear(), today.getMonth(), 1))
-      statsQuery.end_date = toDate(today)
+      query.start_date = toDate(new Date(today.getFullYear(), today.getMonth(), 1))
+      query.end_date = toDate(today)
     } else if (range === 'year') {
-      statsQuery.start_date = toDate(new Date(today.getFullYear(), 0, 1))
-      statsQuery.end_date = toDate(today)
+      query.start_date = toDate(new Date(today.getFullYear(), 0, 1))
+      query.end_date = toDate(today)
     } else if (range === 'last30') {
       const start = new Date(today)
       start.setDate(today.getDate() - 29)
-      statsQuery.start_date = toDate(start)
-      statsQuery.end_date = toDate(today)
+      query.start_date = toDate(start)
+      query.end_date = toDate(today)
     }
+  }
+
+  function setStatsRange(range: string) {
+    applyDateRange(statsQuery, range)
+  }
+
+  function setReceivableRange(range: string) {
+    applyDateRange(receivableQuery, range)
+  }
+
+  function setPayableRange(range: string) {
+    applyDateRange(payableQuery, range)
   }
 
   async function loadDictionaries() {
@@ -641,6 +685,36 @@ export function useLedgerApp() {
     const query = params.toString()
     await latestOnly('stats', () => api<any>(`/stats/overview${query ? `?${query}` : ''}`), (data) => {
       stats.value = data
+    })
+  }
+
+  async function loadReceivables() {
+    await withTableLoading('receivables', async () => {
+      const params = new URLSearchParams()
+      appendReceivableQueryParams(params)
+      if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
+      const query = params.toString()
+      await latestOnly('receivables', () => api<any>(`/stats/receivables${query ? `?${query}` : ''}`), (data) => {
+        receivables.value = data
+        receivableQuery.total = data.records?.total || 0
+        receivableQuery.page = data.records?.page || receivableQuery.page
+        receivableQuery.page_size = data.records?.page_size || receivableQuery.page_size
+      })
+    })
+  }
+
+  async function loadPayables() {
+    await withTableLoading('payables', async () => {
+      const params = new URLSearchParams()
+      appendPayableQueryParams(params)
+      if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
+      const query = params.toString()
+      await latestOnly('payables', () => api<any>(`/stats/payables${query ? `?${query}` : ''}`), (data) => {
+        payables.value = data
+        payableQuery.total = data.records?.total || 0
+        payableQuery.page = data.records?.page || payableQuery.page
+        payableQuery.page_size = data.records?.page_size || payableQuery.page_size
+      })
     })
   }
 
@@ -934,6 +1008,14 @@ export function useLedgerApp() {
     if (activeView.value === 'dashboard' || activeView.value === 'stats') applyStatsQuery()
   }, 250)
 
+  const debouncedReceivableQuery = debounce(() => {
+    if (activeView.value === 'receivables') applyReceivableQuery()
+  }, 250)
+
+  const debouncedPayableQuery = debounce(() => {
+    if (activeView.value === 'payables') applyPayableQuery()
+  }, 250)
+
   function queryRecords() {
     recordQuery.page = 1
     debouncedRecordsQuery()
@@ -991,6 +1073,26 @@ export function useLedgerApp() {
   function resetStatsQuery() {
     Object.assign(statsQuery, { range: 'all', start_date: null, end_date: null })
     applyStatsQuery()
+  }
+
+  function queryReceivables() {
+    receivableQuery.page = 1
+    debouncedReceivableQuery()
+  }
+
+  function resetReceivableQuery() {
+    Object.assign(receivableQuery, { page: 1, page_size: 10, total: 0, range: 'all', start_date: null, end_date: null })
+    applyReceivableQuery()
+  }
+
+  function queryPayables() {
+    payableQuery.page = 1
+    debouncedPayableQuery()
+  }
+
+  function resetPayableQuery() {
+    Object.assign(payableQuery, { page: 1, page_size: 10, total: 0, range: 'all', start_date: null, end_date: null })
+    applyPayableQuery()
   }
 
   function openCreateFamily() {
@@ -1308,6 +1410,8 @@ export function useLedgerApp() {
     debouncedContactsQuery,
     debouncedLoadActiveView,
     debouncedRecordsQuery,
+    debouncedPayableQuery,
+    debouncedReceivableQuery,
     debouncedStatsQuery,
     deleteContact,
     deleteDict,
@@ -1369,6 +1473,8 @@ export function useLedgerApp() {
     loadInitialData,
     loadMe,
     loadRecords,
+    loadPayables,
+    loadReceivables,
     loadStats,
     loadUsers,
     loadVersion,
@@ -1396,11 +1502,15 @@ export function useLedgerApp() {
     openImportModal,
     openResetPassword,
     passwordForm,
+    payables,
+    payableQuery,
     persistSelectedFamilyId,
     queryAudit,
     queryContacts,
     queryFamilies,
     queryRecords,
+    queryPayables,
+    queryReceivables,
     queryStats,
     queryUsers,
     dashboardRecordColumns,
@@ -1409,6 +1519,8 @@ export function useLedgerApp() {
     recordQuery,
     records,
     recordSaving,
+    receivables,
+    receivableQuery,
     refreshToken,
     relatedRecordOptions,
     relationTypeOptions,
@@ -1416,7 +1528,9 @@ export function useLedgerApp() {
     resetFamilyQuery,
     resetAuditQuery,
     resetPasswordForm,
+    resetPayableQuery,
     resetRecordQuery,
+    resetReceivableQuery,
     resetRecordForm,
     resetStatsQuery,
     resetUserQuery,
@@ -1430,6 +1544,8 @@ export function useLedgerApp() {
     selectedFamilyId,
     setRecordDirection,
     setRecordReciprocityStatus,
+    setPayableRange,
+    setReceivableRange,
     setStatsRange,
     showBackupModal,
     showContactModal,

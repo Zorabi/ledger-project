@@ -64,6 +64,8 @@ func (h *AppHandler) RegisterRoutes(r *gin.Engine) {
 	protected.DELETE("/gift-records/:id", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin, models.RoleMember), h.DeleteGiftRecord)
 
 	protected.GET("/stats/overview", h.StatsOverview)
+	protected.GET("/stats/receivables", h.ReceivablesOverview)
+	protected.GET("/stats/payables", h.PayablesOverview)
 	protected.GET("/audit-logs", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.ListAuditLogs)
 	protected.GET("/backup/config", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.GetBackupConfig)
 	protected.PUT("/backup/config", middleware.RequireRoles(models.RoleSuperAdmin, models.RoleFamilyAdmin), h.UpdateBackupConfig)

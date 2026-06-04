@@ -21,10 +21,10 @@ func (h *AppHandler) ListGiftRecords(c *gin.Context) {
 	q := h.db.Preload("Contact").Model(&models.GiftRecord{})
 	q = scopeGiftRecords(q, auth, c.Query("family_id"))
 	if direction := c.Query("direction"); direction != "" {
-		q = q.Where("direction = ?", direction)
+		q = q.Where("gift_records.direction = ?", direction)
 	}
 	if contactID := c.Query("contact_id"); contactID != "" {
-		q = q.Where("contact_id = ?", contactID)
+		q = q.Where("gift_records.contact_id = ?", contactID)
 	}
 	contactJoined := false
 	joinContact := func() {
@@ -47,30 +47,30 @@ func (h *AppHandler) ListGiftRecords(c *gin.Context) {
 		q = q.Where("contacts.relation_type = ?", relationType)
 	}
 	if occasionType := c.Query("occasion_type"); occasionType != "" {
-		q = q.Where("occasion_type = ?", occasionType)
+		q = q.Where("gift_records.occasion_type = ?", occasionType)
 	}
 	if reciprocityStatus := c.Query("reciprocity_status"); reciprocityStatus != "" {
-		q = q.Where("reciprocity_status = ?", reciprocityStatus)
+		q = q.Where("gift_records.reciprocity_status = ?", reciprocityStatus)
 	}
 	if c.Query("reciprocity_unlinked") == "true" {
 		q = q.Where("gift_records.reciprocity_status = ? AND gift_records.related_record_id IS NULL", models.ReciprocityDone)
 	}
 	if remark := c.Query("remark"); remark != "" {
 		keyword := "%" + remark + "%"
-		q = q.Where("(remark ILIKE ? OR gift_description ILIKE ?)", keyword, keyword)
+		q = q.Where("(gift_records.remark ILIKE ? OR gift_records.gift_description ILIKE ?)", keyword, keyword)
 	}
 	if startDate := c.Query("start_date"); startDate != "" {
 		if t, err := time.Parse("2006-01-02", startDate); err == nil {
-			q = q.Where("occurred_on >= ?", t)
+			q = q.Where("gift_records.occurred_on >= ?", t)
 		}
 	}
 	if endDate := c.Query("end_date"); endDate != "" {
 		if t, err := time.Parse("2006-01-02", endDate); err == nil {
-			q = q.Where("occurred_on <= ?", t)
+			q = q.Where("gift_records.occurred_on <= ?", t)
 		}
 	}
 	var items []models.GiftRecord
-	page(c, q.Order("occurred_on desc,id desc"), &items)
+	page(c, q.Order("gift_records.created_at desc,gift_records.id desc"), &items)
 }
 
 func (h *AppHandler) CreateGiftRecord(c *gin.Context) {

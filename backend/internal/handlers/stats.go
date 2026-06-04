@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,203 @@ func (h *AppHandler) StatsOverview(c *gin.Context) {
 	})
 }
 
+func (h *AppHandler) ReceivablesOverview(c *gin.Context) {
+	h.obligationOverview(c, models.DirectionOut)
+}
+
+func (h *AppHandler) PayablesOverview(c *gin.Context) {
+	h.obligationOverview(c, models.DirectionIn)
+}
+
+func (h *AppHandler) obligationOverview(c *gin.Context, direction string) {
+	auth, okAuth := middleware.RequireFamily(c)
+	if !okAuth {
+		return
+	}
+	familyID := c.Query("family_id")
+	startDate, endDate := dateRangeFromQuery(c)
+	pageNum, pageSize := paginationParams(c)
+	q := h.obligationBaseQuery(auth, familyID, startDate, endDate, direction)
+	var totalAmount, recordCount, contactCount int64
+	q.Session(&gorm.Session{}).Select("COALESCE(SUM(gift_records.amount_cents),0)").Scan(&totalAmount)
+	q.Session(&gorm.Session{}).Count(&recordCount)
+	q.Session(&gorm.Session{}).Distinct("gift_records.contact_id").Count(&contactCount)
+	var oldest struct {
+		OccurredOn *time.Time
+	}
+	q.Session(&gorm.Session{}).Select("MIN(gift_records.occurred_on) AS occurred_on").Scan(&oldest)
+	maxWaitDays := int64(0)
+	if oldest.OccurredOn != nil {
+		maxWaitDays = int64(time.Since(*oldest.OccurredOn).Hours() / 24)
+	}
+	ok(c, gin.H{
+		"cards": gin.H{
+			"amount_cents":  totalAmount,
+			"record_count":  recordCount,
+			"contact_count": contactCount,
+			"max_wait_days": maxWaitDays,
+		},
+		"contact_top":    h.obligationContactTop(auth, familyID, startDate, endDate, direction),
+		"aging_stats":    h.obligationAgingStats(auth, familyID, startDate, endDate, direction),
+		"owner_stats":    h.obligationOwnerStats(auth, familyID, startDate, endDate, direction),
+		"relation_stats": h.obligationRelationStats(auth, familyID, startDate, endDate, direction),
+		"records":        h.obligationRecords(auth, familyID, startDate, endDate, direction, pageNum, pageSize),
+	})
+}
+
+func (h *AppHandler) obligationBaseQuery(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string) *gorm.DB {
+	q := scopeGiftRecords(h.db.Model(&models.GiftRecord{}), auth, familyID)
+	q = applyGiftRecordDateRange(q, startDate, endDate)
+	return q.Where("gift_records.direction = ? AND (gift_records.reciprocity_status = ? OR (gift_records.reciprocity_status = ? AND gift_records.related_record_id IS NULL))", direction, models.ReciprocityPending, models.ReciprocityDone)
+}
+
+func (h *AppHandler) obligationContactTop(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string) []gin.H {
+	var rows []struct {
+		ContactID     uint
+		Name          string
+		OwnerName     string
+		RelationType  string
+		OccasionTypes string
+		Amount        int64
+		Count         int64
+		LastOccurred  time.Time
+		FirstOccurred time.Time
+	}
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	q := h.obligationBaseQuery(auth, familyID, startDate, endDate, direction)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select("contacts.id AS contact_id, contacts.name AS name, " + ownerNameExpr + " AS owner_name, contacts.relation_type AS relation_type, STRING_AGG(DISTINCT gift_records.occasion_type, ',' ORDER BY gift_records.occasion_type) AS occasion_types, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count, MAX(gift_records.occurred_on) AS last_occurred, MIN(gift_records.occurred_on) AS first_occurred").
+		Group("contacts.id, contacts.name, " + ownerNameExpr + ", contacts.relation_type").
+		Order("amount desc, first_occurred asc").Limit(5).Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{
+			"contact_id":        row.ContactID,
+			"name":              row.Name,
+			"owner_name":        row.OwnerName,
+			"relation_type":     row.RelationType,
+			"occasion_types":    splitCSV(row.OccasionTypes),
+			"amount_cents":      row.Amount,
+			"record_count":      row.Count,
+			"last_occurred_on":  row.LastOccurred.Format("2006-01-02"),
+			"first_occurred_on": row.FirstOccurred.Format("2006-01-02"),
+			"wait_days":         int64(time.Since(row.FirstOccurred).Hours() / 24),
+		})
+	}
+	return out
+}
+
+func splitCSV(value string) []string {
+	if value == "" {
+		return []string{}
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func (h *AppHandler) obligationAgingStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string) []gin.H {
+	var rows []struct {
+		Bucket string
+		Amount int64
+		Count  int64
+	}
+	q := h.obligationBaseQuery(auth, familyID, startDate, endDate, direction)
+	q.Select("CASE WHEN CURRENT_DATE - gift_records.occurred_on <= 30 THEN '30天内' WHEN CURRENT_DATE - gift_records.occurred_on <= 90 THEN '31-90天' WHEN CURRENT_DATE - gift_records.occurred_on <= 180 THEN '91-180天' WHEN CURRENT_DATE - gift_records.occurred_on <= 365 THEN '181-365天' ELSE '1年以上' END AS bucket, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group("bucket").
+		Order("MIN(gift_records.occurred_on) asc").Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"bucket": row.Bucket, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) obligationOwnerStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string) []gin.H {
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	var rows []struct {
+		Name   string
+		Amount int64
+		Count  int64
+	}
+	q := h.obligationBaseQuery(auth, familyID, startDate, endDate, direction)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select(ownerNameExpr + " AS name, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group(ownerNameExpr).Order("amount desc").Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) obligationRelationStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string) []gin.H {
+	var rows []struct {
+		Name   string
+		Amount int64
+		Count  int64
+	}
+	q := h.obligationBaseQuery(auth, familyID, startDate, endDate, direction)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Select("contacts.relation_type AS name, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group("contacts.relation_type").Order("amount desc").Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) obligationRecords(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string, pageNum int, pageSize int) gin.H {
+	var rows []struct {
+		ID              uint
+		ContactName     string
+		OwnerName       string
+		RelationType    string
+		OccasionType    string
+		AmountCents     int64
+		OccurredOn      time.Time
+		Reciprocity     string
+		GiftDescription string
+		Remark          string
+	}
+	var total int64
+	h.obligationBaseQuery(auth, familyID, startDate, endDate, direction).Count(&total)
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	q := h.obligationBaseQuery(auth, familyID, startDate, endDate, direction)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select("gift_records.id AS id, contacts.name AS contact_name, " + ownerNameExpr + " AS owner_name, contacts.relation_type AS relation_type, gift_records.occasion_type AS occasion_type, gift_records.amount_cents AS amount_cents, gift_records.occurred_on AS occurred_on, gift_records.reciprocity_status AS reciprocity, gift_records.gift_description AS gift_description, gift_records.remark AS remark").
+		Order("gift_records.occurred_on asc, gift_records.id asc").
+		Offset((pageNum - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{
+			"id":               row.ID,
+			"contact_name":     row.ContactName,
+			"owner_name":       row.OwnerName,
+			"relation_type":    row.RelationType,
+			"occasion_type":    row.OccasionType,
+			"amount_cents":     row.AmountCents,
+			"occurred_on":      row.OccurredOn.Format("2006-01-02"),
+			"wait_days":        int64(time.Since(row.OccurredOn).Hours() / 24),
+			"reciprocity":      row.Reciprocity,
+			"gift_description": row.GiftDescription,
+			"remark":           row.Remark,
+		})
+	}
+	return gin.H{"total": total, "list": out, "page": pageNum, "page_size": pageSize}
+}
+
 func dateRangeFromQuery(c *gin.Context) (*time.Time, *time.Time) {
 	var startDate, endDate *time.Time
 	if value := c.Query("start_date"); value != "" {
@@ -64,10 +262,10 @@ func dateRangeFromQuery(c *gin.Context) (*time.Time, *time.Time) {
 
 func applyGiftRecordDateRange(q *gorm.DB, startDate *time.Time, endDate *time.Time) *gorm.DB {
 	if startDate != nil {
-		q = q.Where("occurred_on >= ?", *startDate)
+		q = q.Where("gift_records.occurred_on >= ?", *startDate)
 	}
 	if endDate != nil {
-		q = q.Where("occurred_on <= ?", *endDate)
+		q = q.Where("gift_records.occurred_on <= ?", *endDate)
 	}
 	return q
 }

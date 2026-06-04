@@ -2,7 +2,7 @@
 
 礼尚往来是一个家庭租户模式的礼金/礼品往来账本，包含 Go 后端、Vue 3 前端、PostgreSQL 数据库、Excel 备份导入和轻量审计能力。
 
-当前应用版本：`1.2.0.0`
+当前应用版本：`1.4.0.0`
 
 ## 技术栈
 
@@ -101,6 +101,33 @@ DATABASE_POSTGRES_DBNAME=ledger
 ```
 
 如果必须和其他项目共用同一个 database，而不是共用 PostgreSQL 实例，目前不建议直接部署。本项目当前没有表名前缀或独立 schema 配置，存在表名冲突和权限边界不清的问题。
+
+### 前端静态资源压缩
+
+前端生产构建会在 `frontend/dist/assets/` 中生成原始静态资源以及 `.gz`、`.br` 预压缩文件。Nginx 只会按浏览器能力返回其中一种文件，不会让用户同时下载多份。
+
+如果 Nginx 未编译 Brotli 模块，只开启 gzip 静态文件即可：
+
+```nginx
+location / {
+    root /path/to/frontend/dist;
+    try_files $uri $uri/ /index.html;
+    gzip_static on;
+}
+```
+
+如果 Nginx 已编译 Brotli 模块，可同时开启：
+
+```nginx
+location / {
+    root /path/to/frontend/dist;
+    try_files $uri $uri/ /index.html;
+    gzip_static on;
+    brotli_static on;
+}
+```
+
+未编译 Brotli 模块时不要写 `brotli_static on;`，否则 `nginx -t` 会因未知指令失败。
 
 ### SQL 执行环境
 

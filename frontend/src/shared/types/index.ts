@@ -8,6 +8,8 @@ export type ViewKey =
   | 'records'
   | 'dictionaries'
   | 'stats'
+  | 'receivables'
+  | 'payables'
   | 'backup'
   | 'imports'
   | 'audit'

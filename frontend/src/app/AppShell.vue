@@ -13,6 +13,7 @@ import DictionariesView from '../views/DictionariesView.vue'
 import FamiliesView from '../views/FamiliesView.vue'
 import ImportsView from '../views/ImportsView.vue'
 import RecordsView from '../views/RecordsView.vue'
+import ReceivablesView from '../views/ReceivablesView.vue'
 import StatsView from '../views/StatsView.vue'
 import UsersView from '../views/UsersView.vue'
 
@@ -60,6 +61,8 @@ const {
   debouncedContactsQuery,
   debouncedLoadActiveView,
   debouncedRecordsQuery,
+  debouncedPayableQuery,
+  debouncedReceivableQuery,
   debouncedStatsQuery,
   deleteContact,
   deleteDict,
@@ -119,6 +122,8 @@ const {
   loadInitialData,
   loadMe,
   loadRecords,
+  loadPayables,
+  loadReceivables,
   loadStats,
   loadUsers,
   loadVersion,
@@ -146,11 +151,15 @@ const {
   openImportModal,
   openResetPassword,
   passwordForm,
+  payables,
+  payableQuery,
   persistSelectedFamilyId,
   queryAudit,
   queryContacts,
   queryFamilies,
   queryRecords,
+  queryPayables,
+  queryReceivables,
   queryStats,
   queryUsers,
   dashboardRecordColumns,
@@ -159,6 +168,8 @@ const {
   recordQuery,
   records,
   recordSaving,
+  receivables,
+  receivableQuery,
   refreshToken,
   relatedRecordOptions,
   relationTypeOptions,
@@ -166,7 +177,9 @@ const {
   resetFamilyQuery,
   resetAuditQuery,
   resetPasswordForm,
+  resetPayableQuery,
   resetRecordQuery,
+  resetReceivableQuery,
   resetRecordForm,
   resetStatsQuery,
   resetUserQuery,
@@ -180,6 +193,8 @@ const {
   selectedFamilyId,
   setRecordDirection,
   setRecordReciprocityStatus,
+  setPayableRange,
+  setReceivableRange,
   setStatsRange,
   showBackupModal,
   showContactModal,
@@ -305,9 +320,6 @@ const {
             </div>
           </header>
           <div class="refresh-line" :class="{ active: viewLoading }" aria-hidden="true"></div>
-          <n-card v-if="viewError" :key="`${activeView}-error`" class="view-state" size="small">
-            <n-alert type="warning" :show-icon="false">{{ viewError }}</n-alert>
-          </n-card>
           <section v-if="showFullViewLoading" :key="`${activeView}-loading`" class="view-stack view-loading">
             <n-card size="small" class="skeleton-card">
               <n-skeleton text style="width: 34%" />
@@ -473,6 +485,54 @@ const {
             @query="queryStats"
             @reset="resetStatsQuery"
             @set-range="setStatsRange"
+          />
+
+          <ReceivablesView
+            v-show="activeView === 'receivables'"
+            key="receivables-view"
+            :receivables="receivables"
+            :query="receivableQuery"
+            :loading="Boolean(tableLoading.receivables)"
+            amount-label="待回收金额"
+            contact-label="待回收对象"
+            record-label="待回收笔数"
+            top-title="待回收对象 Top 5"
+            top-empty-text="暂无待回收对象"
+            owner-title="归属成员待回收"
+            relation-title="关系类型待回收"
+            detail-title="待回收明细"
+            detail-empty-text="暂无待回收明细"
+            :money="money"
+            :dictionary-label="dictionaryLabel"
+            :format-date="formatDate"
+            @query="queryReceivables"
+            @reset="resetReceivableQuery"
+            @load="loadReceivables"
+            @set-range="setReceivableRange"
+          />
+
+          <ReceivablesView
+            v-show="activeView === 'payables'"
+            key="payables-view"
+            :receivables="payables"
+            :query="payableQuery"
+            :loading="Boolean(tableLoading.payables)"
+            amount-label="待送出金额"
+            contact-label="待送出对象"
+            record-label="待送出笔数"
+            top-title="待送出对象 Top 5"
+            top-empty-text="暂无待送出对象"
+            owner-title="归属成员待送出"
+            relation-title="关系类型待送出"
+            detail-title="待送出明细"
+            detail-empty-text="暂无待送出明细"
+            :money="money"
+            :dictionary-label="dictionaryLabel"
+            :format-date="formatDate"
+            @query="queryPayables"
+            @reset="resetPayableQuery"
+            @load="loadPayables"
+            @set-range="setPayableRange"
           />
 
           <BackupView

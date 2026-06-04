@@ -59,6 +59,7 @@ export function createApiClient(apiBase: string, getToken: () => string, onUnaut
       const error = new Error(body.msg || `请求失败（${response.status}）`)
       ;(error as any).data = body.data
       ;(error as any).status = response.status
+      ;(error as any).unauthorized = response.status === 401
       throw error
     }
     return body.data as T
@@ -71,6 +72,7 @@ export function createApiClient(apiBase: string, getToken: () => string, onUnaut
       const body = await response.json().catch(() => ({}))
       const error = new Error(body.msg || `下载失败（${response.status}）`)
       ;(error as any).status = response.status
+      ;(error as any).unauthorized = response.status === 401
       throw error
     }
     const blob = await response.blob()

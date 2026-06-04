@@ -910,6 +910,110 @@ h1 {
   color: #c2573f;
 }
 
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rank-list,
+.summary-list,
+.metric-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.rank-list article,
+.summary-list article,
+.metric-bars article {
+  display: grid;
+  min-height: 54px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(202, 216, 210, 0.62);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(249, 253, 251, 0.82));
+}
+
+.rank-list article {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+}
+
+.rank-list b {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(22, 163, 104, 0.12);
+  color: var(--color-primary-deep);
+  font-weight: 900;
+}
+
+.rank-list div,
+.rank-list strong,
+.rank-list span {
+  min-width: 0;
+}
+
+.rank-list strong {
+  display: block;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-list span,
+.summary-list em,
+.metric-bars em {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.rank-list em {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.summary-list article,
+.metric-bars article {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.summary-list span,
+.metric-bars span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-list strong,
+.metric-bars strong {
+  color: var(--color-primary-deep);
+  font-size: 15px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.cell-muted {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .job-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1436,6 +1540,7 @@ h1 {
   }
 
   .metrics,
+  .analysis-grid,
   .summary-grid,
   .skeleton-grid,
   .form-row,

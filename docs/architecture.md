@@ -314,6 +314,8 @@ ledger-project/
 - 家庭级接口必须从登录上下文推导租户；`super_admin` 代家庭操作时通过 `family_id` 查询参数指定目标家庭。
 - `GET /stats/overview` 支持 `start_date`、`end_date` 和 `family_id` 查询参数，并返回 `trend_granularity`。趋势数据在结果跨度不超过 90 天时按日聚合，否则按月聚合。
 - 统计结果包含对象归属成员维度 `owner_stats` 和 `owner_contacts`。`owner_stats` 按往来流水金额归集收礼、送礼和记录数；`owner_contacts` 按往来对象数量展示成员关系分布；未维护归属成员的对象统一归为“未指定”。
+- `GET /stats/receivables` 提供礼金回收分析，统计我方送礼后仍待对方回礼，或已回礼但未关联回礼流水的记录；支持 `start_date`、`end_date`、`family_id`、`page`、`page_size` 查询参数，明细返回分页结构。
+- `GET /stats/payables` 提供礼金送出分析，统计我方收礼后仍待我方回礼，或已回礼但未关联回礼流水的记录；支持 `start_date`、`end_date`、`family_id`、`page`、`page_size` 查询参数，明细返回分页结构。
 
 ## 前端架构建议
 
@@ -336,7 +338,9 @@ ledger-project/
 - 数据字典管理
 - 礼尚往来记录
 - 对象详情
-- 统计分析
+- 收送概览
+- 礼金回收
+- 礼金送出
 - 备份配置
 - 手工导入
 - 备份恢复
@@ -368,6 +372,7 @@ ledger-project/
 - 页面级异步加载使用骨架屏；按钮级异步操作使用 Naive UI 按钮 loading 状态。
 - 列表表格使用 Naive UI 表格 loading 状态；显式查询操作使用防抖封装，分页切换直接加载目标页。
 - 登录过期由 API 客户端统一识别 `401` 响应，并通过应用壳弹出确认提示后清理 token、刷新 token 和页面缓存。
+- 前端生产构建输出 gzip 和 Brotli 预压缩静态资源；生产 Nginx 可按实际模块能力启用 `gzip_static` 或 `brotli_static`。
 - PC 端侧边栏使用固定满高背景层保证长页面中菜单区域铺满视口；移动端隐藏侧边栏菜单并使用底部固定导航。
 
 项目协作与发布约束：
