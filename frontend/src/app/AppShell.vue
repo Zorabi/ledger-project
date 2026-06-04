@@ -163,6 +163,7 @@ const {
   queryStats,
   queryUsers,
   dashboardRecordColumns,
+  quickRecordKeepDraft,
   recordColumns,
   recordForm,
   recordQuery,
@@ -351,6 +352,7 @@ const {
             :record-columns="dashboardRecordColumns"
             :records-loading="Boolean(tableLoading.dashboardRecords || tableLoading.records)"
             :saving="recordSaving || actionSubmitting"
+            :quick-record-keep-draft="quickRecordKeepDraft"
             :money="money"
             :dictionary-label="dictionaryLabel"
             :direction-text="directionText"
@@ -362,6 +364,7 @@ const {
             @set-range="setStatsRange"
             @set-record-direction="setRecordDirection"
             @set-record-reciprocity-status="setRecordReciprocityStatus"
+            @update-quick-record-keep-draft="quickRecordKeepDraft = $event"
             @save-record="runAction(createQuickRecord)"
             @edit-record="openEditRecord"
             @reciprocity-record="openReciprocityRecord"

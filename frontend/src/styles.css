@@ -1118,6 +1118,16 @@ h1 {
   margin-left: 16px;
 }
 
+.quick-draft-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .n-data-table {
   --n-border-radius: var(--table-radius) !important;
   margin-top: 10px;

@@ -13,6 +13,7 @@ defineProps<{
   recordColumns: any[]
   recordsLoading: boolean
   saving: boolean
+  quickRecordKeepDraft: boolean
   money: (cents?: number) => string
   dictionaryLabel: (typeCode: string, value: string) => string
   directionText: (value: string) => string
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   setRange: [range: string]
   setRecordDirection: [direction: string]
   setRecordReciprocityStatus: [status: string]
+  updateQuickRecordKeepDraft: [value: boolean]
   saveRecord: []
   editRecord: [record: any]
   reciprocityRecord: [record: any]
@@ -70,6 +72,12 @@ const emit = defineEmits<{
 
     <section class="split">
       <n-card title="快速录入" size="small">
+        <template #header-extra>
+          <div class="quick-draft-switch">
+            <span>保留表单</span>
+            <n-switch :value="quickRecordKeepDraft" size="small" @update:value="(value: boolean) => emit('updateQuickRecordKeepDraft', value)" />
+          </div>
+        </template>
         <n-form label-placement="top">
           <n-form-item label="往来对象"><n-select v-model:value="recordForm.contact_id" filterable :options="contacts.map((item) => ({ label: item.name, value: item.id }))" placeholder="请选择往来对象" /></n-form-item>
           <n-form-item label="事项类型"><n-select v-model:value="recordForm.occasion_type" filterable :options="occasionTypeOptions" placeholder="请选择事项类型" /></n-form-item>

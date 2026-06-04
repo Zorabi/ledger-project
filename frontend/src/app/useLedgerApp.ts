@@ -9,7 +9,7 @@ import type { PageResult, SessionUser, ViewKey } from '../shared/types'
 
 export function useLedgerApp() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.1.0'
+  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.2.0'
   const FAMILY_CACHE_KEY = 'ledger_families_cache'
   const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -50,6 +50,7 @@ export function useLedgerApp() {
   let hydratingRecordForm = false
   const contactSaving = ref(false)
   const recordSaving = ref(false)
+  const quickRecordKeepDraft = ref(true)
 
   const loginForm = reactive({ username: '', password: '' })
   const passwordForm = reactive({ old_password: '', new_password: '' })
@@ -833,7 +834,7 @@ export function useLedgerApp() {
     }
   }
 
-  async function createRecord() {
+  async function createRecord(options: { keepDraft?: boolean } = {}) {
     if (recordSaving.value) return
     if (!recordForm.contact_id || !recordForm.occasion_type || !recordForm.direction || !recordForm.occurred_on) {
       message.warning('请完整填写往来对象、事项类型、方向和日期')
@@ -853,7 +854,11 @@ export function useLedgerApp() {
       await syncSavedRecordRows(savedRecord)
       await refreshCurrentRecordView()
       editingRecordId.value = null
-      resetRecordForm()
+      if (options.keepDraft) {
+        clearQuickRecordTarget()
+      } else {
+        resetRecordForm()
+      }
       showRecordModal.value = false
     } finally {
       recordSaving.value = false
@@ -862,7 +867,7 @@ export function useLedgerApp() {
 
   async function createQuickRecord() {
     editingRecordId.value = null
-    await createRecord()
+    await createRecord({ keepDraft: quickRecordKeepDraft.value })
   }
 
   async function createDictionaryItem() {
@@ -1208,6 +1213,12 @@ export function useLedgerApp() {
     Object.assign(recordForm, { contact_id: null, occasion_type: occasionTypeOptions.value[0]?.value || '', direction: 'in', amount_yuan: 200, gift_description: '', occurred_on: new Date().toISOString().slice(0, 10), handled_by: user.value?.display_name || '', reciprocity_status: 'pending', related_record_id: null, remark: '' })
   }
 
+  function clearQuickRecordTarget() {
+    recordForm.contact_id = null
+    recordForm.related_record_id = null
+    recordForm.gift_description = ''
+  }
+
   function setRecordDirection(direction: string) {
     if (recordForm.direction !== direction) {
       recordForm.related_record_id = null
@@ -1514,6 +1525,7 @@ export function useLedgerApp() {
     queryStats,
     queryUsers,
     dashboardRecordColumns,
+    quickRecordKeepDraft,
     recordColumns,
     recordForm,
     recordQuery,
