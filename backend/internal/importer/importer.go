@@ -53,11 +53,12 @@ func DryRunBackup(db *gorm.DB, familyID uint, content []byte) (*Result, error) {
 		return nil, err
 	}
 	result := &Result{Payload: payload, SourceSheets: sheets}
-	inspectContacts(db, familyID, payload.Contacts, result)
+	maps := newBackupIDMaps()
+	inspectBackupContacts(db, familyID, payload.Contacts, result, maps)
 	inspectDictionaryTypes(db, payload.DictionaryTypes, result)
 	inspectDictionaries(db, familyID, payload.Dictionaries, result)
 	inspectUsers(db, familyID, payload.Users, result)
-	inspectRecords(db, familyID, payload.Records, result)
+	inspectBackupRecords(db, familyID, payload.Records, result, maps)
 	return result, nil
 }
 
@@ -82,17 +83,30 @@ func Apply(db *gorm.DB, familyID uint, payload Payload, operatorID uint) (*Resul
 func ApplyBackup(db *gorm.DB, familyID uint, payload Payload, operatorID uint) (*Result, error) {
 	result := &Result{Payload: payload}
 	err := db.Transaction(func(tx *gorm.DB) error {
-		applyContacts(tx, familyID, payload.Contacts, operatorID, result)
+		maps := newBackupIDMaps()
+		applyBackupContacts(tx, familyID, payload.Contacts, operatorID, result, maps)
 		applyDictionaryTypes(tx, payload.DictionaryTypes, result)
 		applyDictionaries(tx, familyID, payload.Dictionaries, result)
 		applyUsers(tx, familyID, payload.Users, result)
-		applyRecords(tx, familyID, payload.Records, operatorID, result)
+		applyBackupRecords(tx, familyID, payload.Records, operatorID, result, maps)
 		if len(result.Errors) > 0 {
 			return errors.New(result.Errors[0].ErrorMessage)
 		}
 		return nil
 	})
 	return result, err
+}
+
+type backupIDMaps struct {
+	contacts map[uint]uint
+	records  map[uint]uint
+}
+
+func newBackupIDMaps() *backupIDMaps {
+	return &backupIDMaps{
+		contacts: map[uint]uint{},
+		records:  map[uint]uint{},
+	}
 }
 
 func ApplyManual(db *gorm.DB, familyID uint, payload Payload, operatorID uint) (*Result, error) {
@@ -287,6 +301,29 @@ func inspectContacts(db *gorm.DB, familyID uint, rows []map[string]string, resul
 	}
 }
 
+func inspectBackupContacts(db *gorm.DB, familyID uint, rows []map[string]string, result *Result, maps *backupIDMaps) {
+	for i, row := range rows {
+		name := strings.TrimSpace(row["名称"])
+		if name == "" {
+			addError(result, "往来对象", i+2, "名称", "名称不能为空", row)
+			continue
+		}
+		if _, err := resolveOwnerUserID(db, familyID, row); err != nil {
+			addError(result, "往来对象", i+2, "归属成员", err.Error(), row)
+			continue
+		}
+		sourceID := parseID(row["对象编号"])
+		if target, ok := findBackupContactTarget(db, familyID, sourceID, name); ok {
+			if sourceID > 0 {
+				maps.contacts[sourceID] = target.ID
+			}
+			result.Updated++
+			continue
+		}
+		result.Created++
+	}
+}
+
 func inspectDictionaries(db *gorm.DB, familyID uint, rows []map[string]string, result *Result) {
 	for i, row := range rows {
 		if row["类型编码"] == "" || row["标签"] == "" {
@@ -377,6 +414,70 @@ func inspectRecords(db *gorm.DB, familyID uint, rows []map[string]string, result
 	}
 }
 
+func inspectBackupRecords(db *gorm.DB, familyID uint, rows []map[string]string, result *Result, maps *backupIDMaps) {
+	for i, row := range rows {
+		row["发生日期"] = normalizeExcelDate(row["发生日期"])
+		if row["方向"] == "" || row["发生日期"] == "" {
+			addError(result, "往来流水", i+2, "必填字段", "方向、发生日期不能为空", row)
+			continue
+		}
+		if normalizeDirection(row["方向"]) == "" {
+			addError(result, "往来流水", i+2, "往来方向", "往来方向必须填写收礼或送礼", row)
+			continue
+		}
+		if row["对象编号"] == "" && row["对象名称"] == "" {
+			addError(result, "往来流水", i+2, "往来对象", "对象编号和对象名称至少填写一个", row)
+			continue
+		}
+		amount, err := parseAmountCents(row)
+		if err != nil {
+			addError(result, "往来流水", i+2, "金额", err.Error(), row)
+			continue
+		}
+		occurredOn, err := time.Parse("2006-01-02", row["发生日期"])
+		if err != nil {
+			addError(result, "往来流水", i+2, "发生日期", "日期格式必须为 YYYY-MM-DD", row)
+			continue
+		}
+
+		contactID := uint(0)
+		sourceContactID := parseID(row["对象编号"])
+		if sourceContactID > 0 {
+			contactID = maps.contacts[sourceContactID]
+		}
+		if contactID == 0 {
+			name := strings.TrimSpace(row["对象名称"])
+			if contact, ok := findBackupContactTarget(db, familyID, 0, name); ok {
+				contactID = contact.ID
+				if sourceContactID > 0 {
+					maps.contacts[sourceContactID] = contact.ID
+				}
+			}
+		}
+		if contactID == 0 {
+			result.Created++
+			continue
+		}
+		record := models.GiftRecord{
+			FamilyID:        familyID,
+			ContactID:       contactID,
+			OccasionType:    fallback(row["事项类型"], "其他"),
+			Direction:       normalizeDirection(row["方向"]),
+			AmountCents:     amount,
+			GiftDescription: row["礼品说明"],
+			OccurredOn:      occurredOn,
+		}
+		if target, ok := findBackupRecordTarget(db, familyID, parseID(row["业务编号"]), record); ok {
+			if sourceID := parseID(row["业务编号"]); sourceID > 0 {
+				maps.records[sourceID] = target.ID
+			}
+			result.Updated++
+			continue
+		}
+		result.Created++
+	}
+}
+
 func applyContacts(tx *gorm.DB, familyID uint, rows []map[string]string, operatorID uint, result *Result) {
 	for i, row := range rows {
 		if row["名称"] == "" {
@@ -408,6 +509,48 @@ func applyContacts(tx *gorm.DB, familyID uint, rows []map[string]string, operato
 			tx.Create(&contact)
 			result.Created++
 		}
+	}
+}
+
+func applyBackupContacts(tx *gorm.DB, familyID uint, rows []map[string]string, operatorID uint, result *Result, maps *backupIDMaps) {
+	for i, row := range rows {
+		name := strings.TrimSpace(row["名称"])
+		if name == "" {
+			addError(result, "往来对象", i+2, "名称", "名称不能为空", row)
+			continue
+		}
+		ownerUserID, err := resolveOwnerUserID(tx, familyID, row)
+		if err != nil {
+			addError(result, "往来对象", i+2, "归属成员", err.Error(), row)
+			continue
+		}
+		contact := models.Contact{
+			FamilyID:     familyID,
+			OwnerUserID:  ownerUserID,
+			Name:         name,
+			ContactType:  fallback(row["对象类型"], "个人"),
+			RelationType: fallback(row["关系类型"], "其他"),
+			Phone:        row["手机号"],
+			Address:      row["地址"],
+			Status:       normalizeStatus(fallback(row["状态"], models.StatusEnabled)),
+			Remark:       row["备注"],
+			CreatedBy:    operatorID,
+		}
+		sourceID := parseID(row["对象编号"])
+		target, found := findBackupContactTarget(tx, familyID, sourceID, name)
+		if found {
+			tx.Model(&models.Contact{}).Where("id = ? AND family_id = ?", target.ID, familyID).Updates(contact)
+			if sourceID > 0 {
+				maps.contacts[sourceID] = target.ID
+			}
+			result.Updated++
+			continue
+		}
+		tx.Create(&contact)
+		if sourceID > 0 {
+			maps.contacts[sourceID] = contact.ID
+		}
+		result.Created++
 	}
 }
 
@@ -560,6 +703,88 @@ func applyRecords(tx *gorm.DB, familyID uint, rows []map[string]string, operator
 	}
 }
 
+func applyBackupRecords(tx *gorm.DB, familyID uint, rows []map[string]string, operatorID uint, result *Result, maps *backupIDMaps) {
+	type pendingRelated struct {
+		rowNumber       int
+		raw             map[string]string
+		targetRecordID  uint
+		sourceRelatedID uint
+	}
+	pending := []pendingRelated{}
+	for i, row := range rows {
+		row["发生日期"] = normalizeExcelDate(row["发生日期"])
+		contactID, err := resolveBackupContactID(tx, familyID, row, operatorID, maps)
+		if err != nil {
+			addError(result, "往来流水", i+2, "往来对象", err.Error(), row)
+			continue
+		}
+		record, err := buildGiftRecordFromRow(row, familyID, contactID, operatorID)
+		if err != nil {
+			addError(result, "往来流水", i+2, "必填字段", err.Error(), row)
+			continue
+		}
+		sourceID := parseID(row["业务编号"])
+		record.RelatedRecordID = nil
+		target, found := findBackupRecordTarget(tx, familyID, sourceID, record)
+		if found {
+			tx.Model(&models.GiftRecord{}).Where("id = ? AND family_id = ?", target.ID, familyID).Updates(record)
+			if sourceID > 0 {
+				maps.records[sourceID] = target.ID
+			}
+			result.Updated++
+		} else {
+			tx.Create(&record)
+			if sourceID > 0 {
+				maps.records[sourceID] = record.ID
+			}
+			result.Created++
+		}
+		targetID := record.ID
+		if found {
+			targetID = target.ID
+		}
+		if related := parseID(row["关联记录编号"]); related > 0 {
+			pending = append(pending, pendingRelated{rowNumber: i + 2, raw: row, targetRecordID: targetID, sourceRelatedID: related})
+		}
+	}
+	for _, item := range pending {
+		relatedID, ok := maps.records[item.sourceRelatedID]
+		if !ok {
+			addError(result, "往来流水", item.rowNumber, "关联记录编号", "关联记录编号未在备份流水中找到，无法安全恢复关联关系", item.raw)
+			continue
+		}
+		tx.Model(&models.GiftRecord{}).Where("id = ? AND family_id = ?", item.targetRecordID, familyID).Update("related_record_id", relatedID)
+	}
+}
+
+func buildGiftRecordFromRow(row map[string]string, familyID uint, contactID uint, operatorID uint) (models.GiftRecord, error) {
+	occurredOn, err := time.Parse("2006-01-02", row["发生日期"])
+	if err != nil {
+		return models.GiftRecord{}, errors.New("日期格式必须为 YYYY-MM-DD")
+	}
+	amount, err := parseAmountCents(row)
+	if err != nil {
+		return models.GiftRecord{}, err
+	}
+	direction := normalizeDirection(row["方向"])
+	if direction == "" {
+		return models.GiftRecord{}, errors.New("往来方向必须填写收礼或送礼")
+	}
+	return models.GiftRecord{
+		FamilyID:          familyID,
+		ContactID:         contactID,
+		OccasionType:      fallback(row["事项类型"], "其他"),
+		Direction:         direction,
+		AmountCents:       amount,
+		GiftDescription:   row["礼品说明"],
+		OccurredOn:        occurredOn,
+		HandledBy:         row["经办人"],
+		ReciprocityStatus: normalizeReciprocityStatus(fallback(row["回礼状态"], models.ReciprocityNone)),
+		Remark:            row["备注"],
+		CreatedBy:         operatorID,
+	}, nil
+}
+
 func exists[T any](db *gorm.DB, model *T, familyID uint, id uint) bool {
 	var count int64
 	db.Model(model).Where("id = ? AND family_id = ?", id, familyID).Count(&count)
@@ -636,6 +861,20 @@ func contactNameExists(db *gorm.DB, familyID uint, name string) bool {
 	return count > 0
 }
 
+func findBackupContactTarget(db *gorm.DB, familyID uint, sourceID uint, name string) (models.Contact, bool) {
+	name = strings.TrimSpace(name)
+	if sourceID > 0 {
+		var byID models.Contact
+		db.Where("id = ? AND family_id = ?", sourceID, familyID).Limit(1).Find(&byID)
+		if byID.ID > 0 && strings.TrimSpace(byID.Name) == name {
+			return byID, true
+		}
+	}
+	var byName models.Contact
+	db.Where("family_id = ? AND name = ?", familyID, name).Limit(1).Find(&byName)
+	return byName, byName.ID > 0
+}
+
 func resolveContactID(tx *gorm.DB, familyID uint, row map[string]string, operatorID uint) (uint, error) {
 	if id := parseID(row["对象编号"]); id > 0 {
 		if exists(tx, &models.Contact{}, familyID, id) {
@@ -669,6 +908,76 @@ func resolveContactID(tx *gorm.DB, familyID uint, row map[string]string, operato
 		return 0, err
 	}
 	return contact.ID, nil
+}
+
+func resolveBackupContactID(tx *gorm.DB, familyID uint, row map[string]string, operatorID uint, maps *backupIDMaps) (uint, error) {
+	if sourceID := parseID(row["对象编号"]); sourceID > 0 {
+		if targetID, ok := maps.contacts[sourceID]; ok {
+			return targetID, nil
+		}
+	}
+	name := strings.TrimSpace(row["对象名称"])
+	if name == "" {
+		return 0, errors.New("对象编号和对象名称至少填写一个")
+	}
+	if contact, ok := findBackupContactTarget(tx, familyID, 0, name); ok {
+		return contact.ID, nil
+	}
+	contact := models.Contact{
+		FamilyID:     familyID,
+		Name:         name,
+		ContactType:  "个人",
+		RelationType: "其他",
+		Status:       models.StatusEnabled,
+		CreatedBy:    operatorID,
+	}
+	if err := tx.Create(&contact).Error; err != nil {
+		return 0, err
+	}
+	if sourceID := parseID(row["对象编号"]); sourceID > 0 {
+		maps.contacts[sourceID] = contact.ID
+	}
+	return contact.ID, nil
+}
+
+func findBackupRecordTarget(db *gorm.DB, familyID uint, sourceID uint, record models.GiftRecord) (models.GiftRecord, bool) {
+	if sourceID > 0 {
+		var byID models.GiftRecord
+		db.Where("id = ? AND family_id = ?", sourceID, familyID).Limit(1).Find(&byID)
+		if byID.ID > 0 {
+			if sameGiftRecordIdentity(byID, record) {
+				return byID, true
+			}
+			if sameGiftRecordContent(byID, record) {
+				return byID, true
+			}
+		}
+	}
+	var byIdentity models.GiftRecord
+	db.Where(
+		"family_id = ? AND contact_id = ? AND occurred_on = ? AND direction = ? AND amount_cents = ? AND occasion_type = ? AND gift_description = ?",
+		familyID,
+		record.ContactID,
+		record.OccurredOn,
+		record.Direction,
+		record.AmountCents,
+		record.OccasionType,
+		record.GiftDescription,
+	).Limit(1).Find(&byIdentity)
+	return byIdentity, byIdentity.ID > 0
+}
+
+func sameGiftRecordIdentity(a models.GiftRecord, b models.GiftRecord) bool {
+	return a.ContactID == b.ContactID &&
+		sameGiftRecordContent(a, b)
+}
+
+func sameGiftRecordContent(a models.GiftRecord, b models.GiftRecord) bool {
+	return a.OccurredOn.Equal(b.OccurredOn) &&
+		a.Direction == b.Direction &&
+		a.AmountCents == b.AmountCents &&
+		a.OccasionType == b.OccasionType &&
+		a.GiftDescription == b.GiftDescription
 }
 
 func addError(result *Result, sheet string, row int, field string, message string, raw map[string]string) {

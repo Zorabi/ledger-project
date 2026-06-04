@@ -923,6 +923,11 @@ h1 {
   gap: 10px;
 }
 
+.rank-list,
+.metric-bars {
+  grid-template-rows: repeat(5, 72px);
+}
+
 .rank-list article,
 .summary-list article,
 .metric-bars article {
@@ -938,6 +943,7 @@ h1 {
 
 .rank-list article {
   grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-height: 72px;
 }
 
 .rank-list b {
@@ -986,6 +992,10 @@ h1 {
 .summary-list article,
 .metric-bars article {
   grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.metric-bars article {
+  min-height: 72px;
 }
 
 .summary-list span,

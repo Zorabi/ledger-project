@@ -222,7 +222,7 @@ func (h *AppHandler) obligationRecords(auth middleware.AuthUser, familyID string
 	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
 		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
 		Select("gift_records.id AS id, contacts.name AS contact_name, " + ownerNameExpr + " AS owner_name, contacts.relation_type AS relation_type, gift_records.occasion_type AS occasion_type, gift_records.amount_cents AS amount_cents, gift_records.occurred_on AS occurred_on, gift_records.reciprocity_status AS reciprocity, gift_records.gift_description AS gift_description, gift_records.remark AS remark").
-		Order("gift_records.occurred_on asc, gift_records.id asc").
+		Order("gift_records.occurred_on asc, gift_records.amount_cents desc, gift_records.occasion_type asc, gift_records.id asc").
 		Offset((pageNum - 1) * pageSize).
 		Limit(pageSize).
 		Scan(&rows)

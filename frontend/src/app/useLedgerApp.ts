@@ -9,7 +9,7 @@ import type { PageResult, SessionUser, ViewKey } from '../shared/types'
 
 export function useLedgerApp() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.0.0'
+  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.4.1.0'
   const FAMILY_CACHE_KEY = 'ledger_families_cache'
   const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -509,7 +509,7 @@ export function useLedgerApp() {
     if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
     const query = params.toString()
     await latestOnly('contact-options', () => api<PageResult<any>>(`/contacts?${query}`), (data) => {
-      contactOptions.value = data.list
+      contactOptions.value = [...data.list].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN', { numeric: true }))
     })
   }
 

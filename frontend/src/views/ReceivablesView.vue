@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RotateCcw, Search } from 'lucide-vue-next'
 
-defineProps<{
+const props = defineProps<{
   receivables: any
   query: any
   loading: boolean
@@ -46,7 +46,7 @@ function remarkText(row: any) {
 function occasionTypesText(item: any) {
   const values = Array.isArray(item?.occasion_types) ? item.occasion_types : []
   if (!values.length) return '未指定'
-  return values.map((value: string) => dictionaryLabel('occasion_type', value)).join('、')
+  return values.map((value: string) => props.dictionaryLabel('occasion_type', value)).join('、')
 }
 
 function reloadFromFirstPage(query: any) {
