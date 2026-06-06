@@ -25,6 +25,7 @@ ledger-project/
 - `internal/services`：业务逻辑。
 - `internal/handlers`：HTTP API。
 - `internal/middleware`：认证、授权、日志、恢复。
+- `internal/logger`：结构化日志初始化、控制台与文件多路输出、日志级别和轮转策略。
 - `internal/scheduler`：定时任务，包括备份任务和 session 清理。
 - `internal/audit`：审计日志封装。
 - `internal/exporter`：Excel 导出、ZIP 加密。

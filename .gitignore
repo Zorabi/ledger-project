@@ -5,6 +5,8 @@
 .gocache/
 .gopath/
 backend/ledger-backend
+backend/logs/
+logs/
 dist/
 
 # Frontend

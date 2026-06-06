@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -10,6 +11,7 @@ import (
 type Config struct {
 	App        AppMetaConfig
 	Server     ServerConfig
+	Log        LogConfig
 	Database   DatabaseConfig
 	JWT        JWTConfig
 	Security   SecurityConfig
@@ -32,6 +34,17 @@ type PageConfig struct {
 	DefaultPageSize int `mapstructure:"default_page_size"`
 	DefaultPageNum  int `mapstructure:"default_page_num"`
 	MaxPageSize     int `mapstructure:"max_page_size"`
+}
+
+type LogConfig struct {
+	Level      string
+	Console    bool
+	File       bool
+	FilePath   string `mapstructure:"file_path"`
+	MaxSizeMB  int    `mapstructure:"max_size_mb"`
+	MaxBackups int    `mapstructure:"max_backups"`
+	MaxAgeDays int    `mapstructure:"max_age_days"`
+	Compress   bool
 }
 
 type DatabaseConfig struct {
@@ -96,7 +109,15 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.4.3.0")
+	v.SetDefault("app.version", "1.5.0.0")
+	v.SetDefault("log.level", "info")
+	v.SetDefault("log.console", true)
+	v.SetDefault("log.file", true)
+	v.SetDefault("log.file_path", "logs/ledger-backend.log")
+	v.SetDefault("log.max_size_mb", 100)
+	v.SetDefault("log.max_backups", 10)
+	v.SetDefault("log.max_age_days", 30)
+	v.SetDefault("log.compress", true)
 	v.SetDefault("database.postgres.auto_create", true)
 	v.SetDefault("database.postgres.auto_migrate", true)
 	v.SetDefault("jwt.signing_method", "HS256")
@@ -127,6 +148,14 @@ func LoadConfig() {
 		"database.postgres.auto_migrate",
 		"app.name",
 		"app.version",
+		"log.level",
+		"log.console",
+		"log.file",
+		"log.file_path",
+		"log.max_size_mb",
+		"log.max_backups",
+		"log.max_age_days",
+		"log.compress",
 		"jwt.secret",
 		"jwt.access_token_hours",
 		"jwt.refresh_token_days",
@@ -150,6 +179,21 @@ func LoadConfig() {
 	}
 	if AppConfig.Server.Page.MaxPageSize == 0 {
 		AppConfig.Server.Page.MaxPageSize = 100
+	}
+	if AppConfig.Log.FilePath == "" {
+		AppConfig.Log.FilePath = "logs/ledger-backend.log"
+	}
+	if !filepath.IsAbs(AppConfig.Log.FilePath) {
+		AppConfig.Log.FilePath = filepath.Clean(filepath.Join(filepath.Dir(v.ConfigFileUsed()), AppConfig.Log.FilePath))
+	}
+	if AppConfig.Log.MaxSizeMB <= 0 {
+		AppConfig.Log.MaxSizeMB = 100
+	}
+	if AppConfig.Log.MaxBackups <= 0 {
+		AppConfig.Log.MaxBackups = 10
+	}
+	if AppConfig.Log.MaxAgeDays <= 0 {
+		AppConfig.Log.MaxAgeDays = 30
 	}
 	if AppConfig.JWT.Secret == "" {
 		panic("jwt.secret is required")

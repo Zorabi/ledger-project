@@ -36,6 +36,8 @@ services:
       DATABASE_POSTGRES_SSL_MODE: disable
       DATABASE_POSTGRES_AUTO_CREATE: "true"
       DATABASE_POSTGRES_AUTO_MIGRATE: "true"
+    volumes:
+      - backend-logs:/app/logs
 
   frontend:
     container_name: ledger-frontend
@@ -49,3 +51,4 @@ services:
 
 volumes:
   postgres-data:
+  backend-logs:

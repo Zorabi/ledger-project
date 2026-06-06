@@ -21,21 +21,31 @@ import (
 	"ledger-backend/internal/config"
 	"ledger-backend/internal/database"
 	"ledger-backend/internal/handlers"
+	applogger "ledger-backend/internal/logger"
 	"ledger-backend/internal/middleware"
 	"ledger-backend/internal/scheduler"
 	"ledger-backend/internal/utils"
 )
 
 // @title 礼尚往来 API
-// @version 1.4.3.0
+// @version 1.5.0.0
 // @description 家庭租户礼尚往来记录系统后端接口。
 // @host localhost:8080
 // @BasePath /api/v1
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
 	config.LoadConfig()
+	logOutput, err := applogger.Setup(config.AppConfig.Log)
+	if err != nil {
+		log.Fatalf("setup logger: %s", err)
+	}
+	defer logOutput.Close()
+	slog.Info("logger initialized",
+		"level", config.AppConfig.Log.Level,
+		"console", config.AppConfig.Log.Console,
+		"file", config.AppConfig.Log.File,
+		"file_path", config.AppConfig.Log.FilePath,
+	)
+
 	db := database.ConnectDatabase()
 
 	app := handlers.NewAppHandler(db)
@@ -47,7 +57,7 @@ func main() {
 	defer stopScheduler()
 	scheduler.New(db).Start(ctx)
 
-	r := gin.Default()
+	r := gin.New()
 	r.Use(middleware.StructuredLogger())
 	r.Use(utils.Recovery())
 	r.Use(cors.New(cors.Config{

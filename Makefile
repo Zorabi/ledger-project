@@ -6,6 +6,7 @@ FRONTEND_DIR := frontend
 BUILD_DIR ?= dist
 BACKEND_BUILD_DIR := $(BUILD_DIR)/backend
 FRONTEND_BUILD_DIR := $(BUILD_DIR)/frontend
+BACKEND_BINARY_NAME ?= ledger-backend
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 CGO_ENABLED ?= 0
@@ -48,8 +49,8 @@ test:
 build: backend-build frontend-build
 
 backend-build:
-	@mkdir -p $(BACKEND_BUILD_DIR)
-	cd $(BACKEND_DIR) && CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w" -o ../$(BACKEND_BUILD_DIR)/$(APP_NAME)-api-$(GOOS)-$(GOARCH)$(if $(filter windows,$(GOOS)),.exe,) ./cmd/api
+	@mkdir -p $(BACKEND_BUILD_DIR)/$(GOOS)-$(GOARCH)
+	cd $(BACKEND_DIR) && CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w" -o ../$(BACKEND_BUILD_DIR)/$(GOOS)-$(GOARCH)/$(BACKEND_BINARY_NAME)$(if $(filter windows,$(GOOS)),.exe,) ./cmd/api
 
 build-linux-amd64:
 	$(MAKE) backend-build GOOS=linux GOARCH=amd64

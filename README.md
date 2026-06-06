@@ -54,6 +54,32 @@ make dev-frontend
 | `JWT_SECRET` | JWT 签名密钥，生产必须改强随机值 |
 | `APP_ENCRYPTION_KEY` | 备份 ZIP 密码加密主密钥，迁移服务器时必须保留 |
 | `APP_VERSION` | 应用展示版本号 |
+| `LOG_LEVEL` | 日志级别：`debug`、`info`、`warn`、`error` |
+| `LOG_CONSOLE` | 是否输出到标准输出 |
+| `LOG_FILE` | 是否写入日志文件 |
+| `LOG_FILE_PATH` | 日志文件路径，默认 `logs/ledger-backend.log` |
+| `LOG_MAX_SIZE_MB` | 单个日志文件最大容量（MB） |
+| `LOG_MAX_BACKUPS` | 最多保留的轮转文件数量 |
+| `LOG_MAX_AGE_DAYS` | 日志文件最长保留天数 |
+| `LOG_COMPRESS` | 是否压缩已轮转的日志文件 |
+
+## 后端日志
+
+后端默认同时输出 JSON 日志到控制台和 `logs/ledger-backend.log`。日志包含应用事件、HTTP 请求、状态码、耗时、客户端 IP、User-Agent 和 `trace_id`。
+
+```yaml
+log:
+  level: "info"
+  console: true
+  file: true
+  file_path: "logs/ledger-backend.log"
+  max_size_mb: 100
+  max_backups: 10
+  max_age_days: 30
+  compress: true
+```
+
+相对 `file_path` 以实际读取到的 `config.yaml` 所在目录为基准，因此本地默认生成在 `backend/logs/ledger-backend.log`，Docker 中生成在 `/app/logs/ledger-backend.log`。Docker Compose 已将 `/app/logs` 挂载为 `backend-logs` 数据卷，容器重建后日志仍会保留。若生产环境统一采集标准输出，可设置 `LOG_FILE=false`；若只保留文件日志，可设置 `LOG_CONSOLE=false`。
 
 ## 部署建议
 
@@ -250,7 +276,7 @@ make db-restore BACKUP_FILE=backups/ledger.dump
 构建产物说明：
 
 - 所有发布产物统一输出到根目录 `dist/`。
-- 后端二进制输出到 `dist/backend/`，文件名包含系统和架构，例如 `ledger-api-linux-amd64`、`ledger-api-windows-amd64.exe`。
+- 后端二进制按平台输出到 `dist/backend/<系统>-<架构>/`，文件名统一为 `ledger-backend`，Windows 为 `ledger-backend.exe`。例如 `dist/backend/linux-amd64/ledger-backend`、`dist/backend/windows-amd64/ledger-backend.exe`。
 - 前端静态资源先构建到 `frontend/dist/`，再打包为 `dist/frontend/ledger-web.zip`。
 - `make build`：构建当前平台后端二进制，并生成前端 zip 包。
 - `make build-linux-amd64` / `make build-linux-arm64`：构建 Linux 后端二进制。
