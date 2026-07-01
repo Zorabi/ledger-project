@@ -23,7 +23,7 @@ function noteText(row: any) {
 
 <template>
   <n-drawer :show="show" width="720" placement="right" @update:show="(value: boolean) => { if (!value) emit('close') }">
-    <n-drawer-content :title="detail?.contact?.name || '对象详情'" closable>
+    <n-drawer-content title="对象详情" closable>
       <n-spin :show="loading">
         <section v-if="detail?.contact" class="contact-detail">
           <header class="contact-detail-head">
