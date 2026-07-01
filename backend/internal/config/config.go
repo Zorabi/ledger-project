@@ -114,7 +114,7 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.6.0.1")
+	v.SetDefault("app.version", "1.6.0.2")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.console", true)
 	v.SetDefault("log.file", true)

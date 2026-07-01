@@ -22,7 +22,7 @@ function noteText(row: any) {
 </script>
 
 <template>
-  <n-drawer :show="show" width="720" placement="right" @update:show="(value: boolean) => { if (!value) emit('close') }">
+  <n-drawer class="contact-detail-drawer" :show="show" width="min(720px, 100vw)" placement="right" @update:show="(value: boolean) => { if (!value) emit('close') }">
     <n-drawer-content title="对象详情" closable>
       <n-spin :show="loading">
         <section v-if="detail?.contact" class="contact-detail">

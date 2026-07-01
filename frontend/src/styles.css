@@ -1180,6 +1180,7 @@ h1 {
 .contact-detail {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .contact-detail-head {
@@ -1247,6 +1248,7 @@ h1 {
   color: #33454d;
   background: rgba(255, 255, 255, 0.68);
   line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .contact-detail-metrics {
@@ -1805,14 +1807,36 @@ h1 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .contact-detail-actions :where(.n-button) {
+    width: 100%;
+  }
+
   .detail-info-grid,
   .contact-detail-metrics,
+  .detail-record-list article,
   .timeline-list article {
     grid-template-columns: 1fr;
   }
 
+  .detail-info-grid strong,
+  .detail-record-list strong,
+  .timeline-list strong,
+  .detail-record-list span,
+  .timeline-list span,
+  .timeline-list time {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .contact-detail-metrics article {
     min-height: 76px;
+  }
+
+  .detail-record-list em,
+  .timeline-list em {
+    justify-self: start;
   }
 
   .timeline-list article {
@@ -1904,6 +1928,41 @@ h1 {
 
   .direction-choice {
     grid-template-columns: 1fr;
+  }
+
+  .contact-detail-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+
+  .contact-detail-drawer :where(.n-drawer-header) {
+    padding: 14px 16px;
+  }
+
+  .contact-detail-drawer :where(.n-drawer-body-content-wrapper) {
+    padding: 14px 16px max(18px, env(safe-area-inset-bottom));
+  }
+
+  .contact-detail {
+    gap: 14px;
+  }
+
+  .contact-detail-head {
+    gap: 12px;
+  }
+
+  .contact-detail-head strong {
+    font-size: 22px;
+  }
+
+  .detail-info-grid article,
+  .detail-record-list article,
+  .timeline-list article {
+    padding: 10px 11px;
+  }
+
+  .contact-detail-metrics strong {
+    font-size: 20px;
   }
 
   .quick-record-card .direction-choice {
