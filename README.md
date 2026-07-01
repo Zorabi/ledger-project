@@ -39,7 +39,7 @@ make dev-frontend
 
 ## 关键环境变量
 
-后端配置来自 `backend/config.yaml`，也支持通过环境变量覆盖。
+后端配置来自 `backend/config.yaml`，也支持通过环境变量覆盖。可从 `.env.example` 复制需要的变量到实际部署环境。
 
 | 环境变量 | 说明 |
 | --- | --- |
@@ -54,6 +54,7 @@ make dev-frontend
 | `JWT_SECRET` | JWT 签名密钥，生产必须改强随机值 |
 | `APP_ENCRYPTION_KEY` | 备份 ZIP 密码加密主密钥，迁移服务器时必须保留 |
 | `APP_VERSION` | 应用展示版本号 |
+| `AUDIT_RETENTION_DAYS` | 审计日志保留天数，仅支持 `30`、`60`、`90`，默认 `30` |
 | `LOG_LEVEL` | 日志级别：`debug`、`info`、`warn`、`error` |
 | `LOG_CONSOLE` | 是否输出到标准输出 |
 | `LOG_FILE` | 是否写入日志文件 |

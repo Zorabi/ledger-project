@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ledger-backend/internal/config"
 	"ledger-backend/internal/middleware"
 	"ledger-backend/internal/models"
 )
@@ -34,6 +35,13 @@ func (h *AppHandler) ListAuditLogs(c *gin.Context) {
 	}
 	var items []models.AuditLog
 	page(c, q.Order("id desc"), &items)
+}
+
+func (h *AppHandler) GetAuditRetention(c *gin.Context) {
+	ok(c, gin.H{
+		"retention_days": config.AppConfig.Audit.RetentionDays,
+		"options":        []int{30, 60, 90},
+	})
 }
 
 func (h *AppHandler) auditKeywordSQL(actionCodes, resourceCodes []string, hasSuccessFilter bool) string {

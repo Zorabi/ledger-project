@@ -56,6 +56,92 @@ func (h *AppHandler) PayablesOverview(c *gin.Context) {
 	h.obligationOverview(c, models.DirectionIn)
 }
 
+func (h *AppHandler) TodosOverview(c *gin.Context) {
+	auth, okAuth := middleware.RequireFamily(c)
+	if !okAuth {
+		return
+	}
+	familyID := c.Query("family_id")
+	startDate, endDate := dateRangeFromQuery(c)
+	pageNum, pageSize := paginationParams(c)
+	base := h.todoBaseQuery(auth, familyID, startDate, endDate)
+	var totalAmount, recordCount, contactCount int64
+	base.Session(&gorm.Session{}).Select("COALESCE(SUM(gift_records.amount_cents),0)").Scan(&totalAmount)
+	base.Session(&gorm.Session{}).Count(&recordCount)
+	base.Session(&gorm.Session{}).Distinct("gift_records.contact_id").Count(&contactCount)
+	var oldest struct {
+		OccurredOn *time.Time
+	}
+	base.Session(&gorm.Session{}).Select("MIN(gift_records.occurred_on) AS occurred_on").Scan(&oldest)
+	maxWaitDays := int64(0)
+	if oldest.OccurredOn != nil {
+		maxWaitDays = int64(time.Since(*oldest.OccurredOn).Hours() / 24)
+	}
+
+	ok(c, gin.H{
+		"cards": gin.H{
+			"amount_cents":  totalAmount,
+			"record_count":  recordCount,
+			"contact_count": contactCount,
+			"max_wait_days": maxWaitDays,
+		},
+		"type_stats":     h.todoTypeStats(auth, familyID, startDate, endDate),
+		"aging_stats":    h.todoAgingStats(auth, familyID, startDate, endDate),
+		"large_records":  h.todoLargeRecords(auth, familyID, startDate, endDate),
+		"owner_stats":    h.todoOwnerStats(auth, familyID, startDate, endDate),
+		"relation_stats": h.todoRelationStats(auth, familyID, startDate, endDate),
+		"records":        h.todoRecords(auth, familyID, startDate, endDate, pageNum, pageSize),
+	})
+}
+
+func (h *AppHandler) NonReciprocalOverview(c *gin.Context) {
+	auth, okAuth := middleware.RequireFamily(c)
+	if !okAuth {
+		return
+	}
+	familyID := c.Query("family_id")
+	startDate, endDate := dateRangeFromQuery(c)
+	pageNum, pageSize := paginationParams(c)
+	trendGranularity := h.trendGranularity(auth, familyID, startDate, endDate)
+
+	base := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	var totalAmount, receivedAmount, givenAmount, recordCount, contactCount int64
+	base.Session(&gorm.Session{}).Select("COALESCE(SUM(gift_records.amount_cents),0)").Scan(&totalAmount)
+	base.Session(&gorm.Session{}).Where("gift_records.direction = ?", models.DirectionIn).Select("COALESCE(SUM(gift_records.amount_cents),0)").Scan(&receivedAmount)
+	base.Session(&gorm.Session{}).Where("gift_records.direction = ?", models.DirectionOut).Select("COALESCE(SUM(gift_records.amount_cents),0)").Scan(&givenAmount)
+	base.Session(&gorm.Session{}).Count(&recordCount)
+	base.Session(&gorm.Session{}).Distinct("gift_records.contact_id").Count(&contactCount)
+
+	allRecords := scopeGiftRecords(h.db.Model(&models.GiftRecord{}), auth, familyID)
+	allRecords = applyGiftRecordDateRange(allRecords, startDate, endDate)
+	var allAmount int64
+	allRecords.Select("COALESCE(SUM(gift_records.amount_cents),0)").Scan(&allAmount)
+	amountRatio := 0.0
+	if allAmount > 0 {
+		amountRatio = float64(totalAmount) / float64(allAmount)
+	}
+
+	ok(c, gin.H{
+		"cards": gin.H{
+			"amount_cents":     totalAmount,
+			"received_cents":   receivedAmount,
+			"given_cents":      givenAmount,
+			"net_cents":        receivedAmount - givenAmount,
+			"record_count":     recordCount,
+			"contact_count":    contactCount,
+			"amount_ratio":     amountRatio,
+			"all_amount_cents": allAmount,
+		},
+		"trend_granularity": trendGranularity,
+		"trend":             h.nonReciprocalTrend(auth, familyID, startDate, endDate, trendGranularity),
+		"contact_top":       h.nonReciprocalContactTop(auth, familyID, startDate, endDate),
+		"occasion_stats":    h.nonReciprocalGroupStats(auth, familyID, startDate, endDate, "gift_records.occasion_type"),
+		"relation_stats":    h.nonReciprocalRelationStats(auth, familyID, startDate, endDate),
+		"owner_stats":       h.nonReciprocalOwnerStats(auth, familyID, startDate, endDate),
+		"records":           h.nonReciprocalRecords(auth, familyID, startDate, endDate, pageNum, pageSize),
+	})
+}
+
 func (h *AppHandler) obligationOverview(c *gin.Context, direction string) {
 	auth, okAuth := middleware.RequireFamily(c)
 	if !okAuth {
@@ -96,6 +182,302 @@ func (h *AppHandler) obligationBaseQuery(auth middleware.AuthUser, familyID stri
 	q := scopeGiftRecords(h.db.Model(&models.GiftRecord{}), auth, familyID)
 	q = applyGiftRecordDateRange(q, startDate, endDate)
 	return q.Where("gift_records.direction = ? AND (gift_records.reciprocity_status = ? OR (gift_records.reciprocity_status = ? AND gift_records.related_record_id IS NULL))", direction, models.ReciprocityPending, models.ReciprocityDone)
+}
+
+func (h *AppHandler) todoBaseQuery(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) *gorm.DB {
+	q := scopeGiftRecords(h.db.Model(&models.GiftRecord{}), auth, familyID)
+	q = applyGiftRecordDateRange(q, startDate, endDate)
+	return q.Where("(gift_records.reciprocity_status = ? OR (gift_records.reciprocity_status = ? AND gift_records.related_record_id IS NULL))", models.ReciprocityPending, models.ReciprocityDone)
+}
+
+func todoTypeExpr() string {
+	return "CASE WHEN gift_records.reciprocity_status = 'done' AND gift_records.related_record_id IS NULL THEN 'unlinked_done' WHEN gift_records.direction = 'in' THEN 'pending_payable' ELSE 'pending_receivable' END"
+}
+
+func (h *AppHandler) todoTypeStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	var rows []struct {
+		TodoType string
+		Amount   int64
+		Count    int64
+	}
+	q := h.todoBaseQuery(auth, familyID, startDate, endDate)
+	expr := todoTypeExpr()
+	q.Select(expr + " AS todo_type, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group("todo_type").
+		Order("amount desc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"type": row.TodoType, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) todoAgingStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	var rows []struct {
+		Bucket string
+		Amount int64
+		Count  int64
+	}
+	q := h.todoBaseQuery(auth, familyID, startDate, endDate)
+	q.Select("CASE WHEN CURRENT_DATE - gift_records.occurred_on <= 30 THEN '30天内' WHEN CURRENT_DATE - gift_records.occurred_on <= 90 THEN '31-90天' WHEN CURRENT_DATE - gift_records.occurred_on <= 180 THEN '91-180天' WHEN CURRENT_DATE - gift_records.occurred_on <= 365 THEN '181-365天' ELSE '1年以上' END AS bucket, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group("bucket").
+		Order("MIN(gift_records.occurred_on) asc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"bucket": row.Bucket, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) todoLargeRecords(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	return h.todoRecordRows(auth, familyID, startDate, endDate, 1, 5)["list"].([]gin.H)
+}
+
+func (h *AppHandler) todoOwnerStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	var rows []struct {
+		Name   string
+		Amount int64
+		Count  int64
+	}
+	q := h.todoBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select(ownerNameExpr + " AS name, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group(ownerNameExpr).
+		Order("amount desc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) todoRelationStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	var rows []struct {
+		Name   string
+		Amount int64
+		Count  int64
+	}
+	q := h.todoBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Select("contacts.relation_type AS name, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count").
+		Group("contacts.relation_type").
+		Order("amount desc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) todoRecords(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, pageNum int, pageSize int) gin.H {
+	return h.todoRecordRows(auth, familyID, startDate, endDate, pageNum, pageSize)
+}
+
+func (h *AppHandler) todoRecordRows(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, pageNum int, pageSize int) gin.H {
+	var rows []struct {
+		ID              uint
+		ContactName     string
+		OwnerName       string
+		RelationType    string
+		OccasionType    string
+		Direction       string
+		Reciprocity     string
+		TodoType        string
+		AmountCents     int64
+		OccurredOn      time.Time
+		GiftDescription string
+		Remark          string
+	}
+	var total int64
+	h.todoBaseQuery(auth, familyID, startDate, endDate).Count(&total)
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	q := h.todoBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select("gift_records.id AS id, contacts.name AS contact_name, " + ownerNameExpr + " AS owner_name, contacts.relation_type AS relation_type, gift_records.occasion_type AS occasion_type, gift_records.direction AS direction, gift_records.reciprocity_status AS reciprocity, " + todoTypeExpr() + " AS todo_type, gift_records.amount_cents AS amount_cents, gift_records.occurred_on AS occurred_on, gift_records.gift_description AS gift_description, gift_records.remark AS remark").
+		Order("gift_records.amount_cents desc, gift_records.occurred_on asc, gift_records.id asc").
+		Offset((pageNum - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{
+			"id":               row.ID,
+			"contact_name":     row.ContactName,
+			"owner_name":       row.OwnerName,
+			"relation_type":    row.RelationType,
+			"occasion_type":    row.OccasionType,
+			"direction":        row.Direction,
+			"reciprocity":      row.Reciprocity,
+			"todo_type":        row.TodoType,
+			"amount_cents":     row.AmountCents,
+			"occurred_on":      row.OccurredOn.Format("2006-01-02"),
+			"wait_days":        int64(time.Since(row.OccurredOn).Hours() / 24),
+			"gift_description": row.GiftDescription,
+			"remark":           row.Remark,
+		})
+	}
+	return gin.H{"total": total, "list": out, "page": pageNum, "page_size": pageSize}
+}
+
+func (h *AppHandler) nonReciprocalBaseQuery(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) *gorm.DB {
+	q := scopeGiftRecords(h.db.Model(&models.GiftRecord{}), auth, familyID)
+	q = applyGiftRecordDateRange(q, startDate, endDate)
+	return q.Where("gift_records.reciprocity_status = ?", models.ReciprocityNone)
+}
+
+func (h *AppHandler) nonReciprocalTrend(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, granularity string) []gin.H {
+	var rows []struct {
+		Period    string
+		Direction string
+		Amount    int64
+		Count     int64
+	}
+	dateFormat := "YYYY-MM"
+	if granularity == "day" {
+		dateFormat = "YYYY-MM-DD"
+	}
+	q := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	q.Select("TO_CHAR(gift_records.occurred_on, ?) AS period, gift_records.direction AS direction, COALESCE(SUM(gift_records.amount_cents),0) AS amount, COUNT(*) AS count", dateFormat).
+		Group("period, gift_records.direction").
+		Order("period asc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"period": row.Period, "direction": row.Direction, "amount_cents": row.Amount, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) nonReciprocalContactTop(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	var rows []struct {
+		ContactID uint
+		Name      string
+		Received  int64
+		Given     int64
+		Count     int64
+	}
+	q := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Select("contacts.id AS contact_id, contacts.name AS name, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS received, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS given, COUNT(*) AS count", models.DirectionIn, models.DirectionOut).
+		Group("contacts.id, contacts.name").
+		Order("COALESCE(SUM(gift_records.amount_cents),0) desc, contacts.name asc").
+		Limit(10).
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"contact_id": row.ContactID, "name": row.Name, "received_cents": row.Received, "given_cents": row.Given, "amount_cents": row.Received + row.Given, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) nonReciprocalGroupStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, field string) []gin.H {
+	var rows []struct {
+		Name     string
+		Received int64
+		Given    int64
+		Count    int64
+	}
+	q := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	q.Select(field+" AS name, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS received, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS given, COUNT(*) AS count", models.DirectionIn, models.DirectionOut).
+		Group(field).
+		Order("COALESCE(SUM(gift_records.amount_cents),0) desc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "received_cents": row.Received, "given_cents": row.Given, "amount_cents": row.Received + row.Given, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) nonReciprocalRelationStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	var rows []struct {
+		Name     string
+		Received int64
+		Given    int64
+		Count    int64
+	}
+	q := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Select("contacts.relation_type AS name, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS received, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS given, COUNT(*) AS count", models.DirectionIn, models.DirectionOut).
+		Group("contacts.relation_type").
+		Order("COALESCE(SUM(gift_records.amount_cents),0) desc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "received_cents": row.Received, "given_cents": row.Given, "amount_cents": row.Received + row.Given, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) nonReciprocalOwnerStats(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time) []gin.H {
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	var rows []struct {
+		Name     string
+		Received int64
+		Given    int64
+		Count    int64
+	}
+	q := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select(ownerNameExpr+" AS name, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS received, COALESCE(SUM(CASE WHEN gift_records.direction = ? THEN gift_records.amount_cents ELSE 0 END),0) AS given, COUNT(*) AS count", models.DirectionIn, models.DirectionOut).
+		Group(ownerNameExpr).
+		Order("COALESCE(SUM(gift_records.amount_cents),0) desc").
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{"name": row.Name, "received_cents": row.Received, "given_cents": row.Given, "amount_cents": row.Received + row.Given, "record_count": row.Count})
+	}
+	return out
+}
+
+func (h *AppHandler) nonReciprocalRecords(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, pageNum int, pageSize int) gin.H {
+	var rows []struct {
+		ID              uint
+		ContactName     string
+		OwnerName       string
+		RelationType    string
+		OccasionType    string
+		Direction       string
+		AmountCents     int64
+		OccurredOn      time.Time
+		GiftDescription string
+		Remark          string
+	}
+	var total int64
+	h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate).Count(&total)
+	ownerNameExpr := "COALESCE(NULLIF(users.display_name, ''), NULLIF(users.username, ''), '未指定')"
+	q := h.nonReciprocalBaseQuery(auth, familyID, startDate, endDate)
+	q.Joins("JOIN contacts ON contacts.id = gift_records.contact_id").
+		Joins("LEFT JOIN users ON users.id = contacts.owner_user_id").
+		Select("gift_records.id AS id, contacts.name AS contact_name, " + ownerNameExpr + " AS owner_name, contacts.relation_type AS relation_type, gift_records.occasion_type AS occasion_type, gift_records.direction AS direction, gift_records.amount_cents AS amount_cents, gift_records.occurred_on AS occurred_on, gift_records.gift_description AS gift_description, gift_records.remark AS remark").
+		Order("gift_records.amount_cents desc, gift_records.occurred_on desc, gift_records.id desc").
+		Offset((pageNum - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows)
+	out := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, gin.H{
+			"id":               row.ID,
+			"contact_name":     row.ContactName,
+			"owner_name":       row.OwnerName,
+			"relation_type":    row.RelationType,
+			"occasion_type":    row.OccasionType,
+			"direction":        row.Direction,
+			"amount_cents":     row.AmountCents,
+			"occurred_on":      row.OccurredOn.Format("2006-01-02"),
+			"gift_description": row.GiftDescription,
+			"remark":           row.Remark,
+		})
+	}
+	return gin.H{"total": total, "list": out, "page": pageNum, "page_size": pageSize}
 }
 
 func (h *AppHandler) obligationContactTop(auth middleware.AuthUser, familyID string, startDate *time.Time, endDate *time.Time, direction string) []gin.H {

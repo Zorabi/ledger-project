@@ -20,6 +20,7 @@ interface TableColumnActions {
   openEditUser: (row: any) => void
   openResetPassword: (row: any) => void
   updateUserStatus: (row: any) => void
+  openContactDetail: (row: any) => void
   openEditContact: (row: any) => void
   deleteContact: (row: any) => void
   openEditDictType: (row: any) => void
@@ -180,6 +181,7 @@ function createContactColumns(actions: TableColumnActions, helpers: DictionaryHe
       titleAlign: 'center',
       render: (row) =>
         actionSpace([
+          actionButton('详情', 'neutral', () => actions.openContactDetail(row)),
           actionButton('编辑', 'edit', () => actions.openEditContact(row)),
           deleteAction('删除', '确认删除该对象？', () => actions.deleteContact(row))
         ])

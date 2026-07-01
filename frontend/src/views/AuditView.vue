@@ -7,6 +7,7 @@ defineProps<{
   logs: any[]
   columns: any[]
   loading: boolean
+  retention: any
   actionText: (value: string) => string
   statusText: (value: string | boolean) => string
   resourceText: (value: string) => string
@@ -27,6 +28,10 @@ function reloadFromFirstPage(query: any) {
 
 <template>
   <section class="view-stack">
+    <n-alert type="info" :show-icon="false">
+      审计日志默认自动保留 {{ retention?.retention_days || 30 }} 天，可通过后端配置在 30 / 60 / 90 天之间选择。
+    </n-alert>
+
     <n-card title="审计日志" size="small">
       <div class="filter-bar">
         <div class="filter-fields audit-filter">

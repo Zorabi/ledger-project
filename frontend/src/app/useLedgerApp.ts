@@ -9,7 +9,7 @@ import type { PageResult, SessionUser, ViewKey } from '../shared/types'
 
 export function useLedgerApp() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1'
-  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.5.0.1'
+  const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '1.6.0.0'
   const FAMILY_CACHE_KEY = 'ledger_families_cache'
   const SELECTED_FAMILY_KEY = 'selected_family_id'
 
@@ -32,6 +32,7 @@ export function useLedgerApp() {
   const showUserModal = ref(false)
   const showResetPasswordModal = ref(false)
   const showContactModal = ref(false)
+  const showContactDetail = ref(false)
   const showRecordModal = ref(false)
   const showDictModal = ref(false)
   const showDictTypeModal = ref(false)
@@ -49,6 +50,7 @@ export function useLedgerApp() {
   let lastActionAt = 0
   let hydratingRecordForm = false
   const contactSaving = ref(false)
+  const contactDetailLoading = ref(false)
   const recordSaving = ref(false)
   const quickRecordKeepDraft = ref(true)
 
@@ -70,6 +72,7 @@ export function useLedgerApp() {
   const users = ref<any[]>([])
   const userOptionsSource = ref<any[]>([])
   const contacts = ref<any[]>([])
+  const contactDetail = ref<any>(null)
   const contactOptions = ref<any[]>([])
   const records = ref<any[]>([])
   const dashboardRecords = ref<any[]>([])
@@ -77,20 +80,25 @@ export function useLedgerApp() {
   const dictionaryTypes = ref<any[]>([])
   const dictionaryItems = ref<any[]>([])
   const auditLogs = ref<any[]>([])
+  const auditRetention = ref<any>(null)
   const backupJobs = ref<any[]>([])
   const importJobs = ref<any[]>([])
   const importErrors = ref<any[]>([])
   const stats = ref<any>(null)
+  const todos = ref<any>(null)
   const receivables = ref<any>(null)
   const payables = ref<any>(null)
+  const nonReciprocal = ref<any>(null)
   const backupConfig = ref<any>(null)
   const familyListQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', status: null as string | null })
   const userQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', role: null as string | null, status: null as string | null, family_id: null as number | null })
   const contactQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', contact_type: null as string | null, relation_type: null as string | null, owner_user_id: null as number | null, status: null as string | null, has_owner: null as boolean | null, has_phone: null as boolean | null })
   const recordQuery = reactive({ page: 1, page_size: 10, total: 0, contact_id: null as number | null, owner_user_id: null as number | null, contact_type: null as string | null, relation_type: null as string | null, direction: null as string | null, occasion_type: null as string | null, reciprocity_status: null as string | null, reciprocity_unlinked: null as boolean | null, remark: '', start_date: null as string | null, end_date: null as string | null })
   const statsQuery = reactive({ range: 'all', start_date: null as string | null, end_date: null as string | null })
+  const todoQuery = reactive({ page: 1, page_size: 10, total: 0, range: 'all', start_date: null as string | null, end_date: null as string | null })
   const receivableQuery = reactive({ page: 1, page_size: 10, total: 0, range: 'all', start_date: null as string | null, end_date: null as string | null })
   const payableQuery = reactive({ page: 1, page_size: 10, total: 0, range: 'all', start_date: null as string | null, end_date: null as string | null })
+  const nonReciprocalQuery = reactive({ page: 1, page_size: 10, total: 0, range: 'all', start_date: null as string | null, end_date: null as string | null })
   const backupQuery = reactive({ page: 1, page_size: 10, total: 0 })
   const importQuery = reactive({ page: 1, page_size: 10, total: 0 })
   const auditQuery = reactive({ page: 1, page_size: 10, total: 0, keyword: '', action: '', success: null as boolean | null })
@@ -388,6 +396,8 @@ export function useLedgerApp() {
     try {
       if (view === 'dashboard') {
         await Promise.all([loadContactOptions(), loadDashboardRecords(), loadDictionaries(), loadUsers(), loadStats()])
+      } else if (view === 'todos') {
+        await loadTodos()
       } else if (view === 'families') {
         await loadFamilies()
       } else if (view === 'users') {
@@ -404,6 +414,8 @@ export function useLedgerApp() {
         await loadReceivables()
       } else if (view === 'payables') {
         await loadPayables()
+      } else if (view === 'nonreciprocal') {
+        await loadNonReciprocal()
       } else if (view === 'backup') {
         await loadBackup()
       } else if (view === 'imports') {
@@ -623,6 +635,13 @@ export function useLedgerApp() {
     if (statsQuery.end_date) params.set('end_date', statsQuery.end_date)
   }
 
+  function appendTodoQueryParams(params: URLSearchParams) {
+    params.set('page', String(todoQuery.page))
+    params.set('page_size', String(todoQuery.page_size))
+    if (todoQuery.start_date) params.set('start_date', todoQuery.start_date)
+    if (todoQuery.end_date) params.set('end_date', todoQuery.end_date)
+  }
+
   function appendReceivableQueryParams(params: URLSearchParams) {
     params.set('page', String(receivableQuery.page))
     params.set('page_size', String(receivableQuery.page_size))
@@ -637,8 +656,19 @@ export function useLedgerApp() {
     if (payableQuery.end_date) params.set('end_date', payableQuery.end_date)
   }
 
+  function appendNonReciprocalQueryParams(params: URLSearchParams) {
+    params.set('page', String(nonReciprocalQuery.page))
+    params.set('page_size', String(nonReciprocalQuery.page_size))
+    if (nonReciprocalQuery.start_date) params.set('start_date', nonReciprocalQuery.start_date)
+    if (nonReciprocalQuery.end_date) params.set('end_date', nonReciprocalQuery.end_date)
+  }
+
   async function applyStatsQuery() {
     await Promise.all([loadStats(), activeView.value === 'dashboard' ? loadDashboardRecords() : Promise.resolve()])
+  }
+
+  async function applyTodoQuery() {
+    await loadTodos()
   }
 
   async function applyReceivableQuery() {
@@ -647,6 +677,10 @@ export function useLedgerApp() {
 
   async function applyPayableQuery() {
     await loadPayables()
+  }
+
+  async function applyNonReciprocalQuery() {
+    await loadNonReciprocal()
   }
 
   function applyDateRange(query: { range: string; start_date: string | null; end_date: string | null }, range: string) {
@@ -677,12 +711,20 @@ export function useLedgerApp() {
     applyDateRange(statsQuery, range)
   }
 
+  function setTodoRange(range: string) {
+    applyDateRange(todoQuery, range)
+  }
+
   function setReceivableRange(range: string) {
     applyDateRange(receivableQuery, range)
   }
 
   function setPayableRange(range: string) {
     applyDateRange(payableQuery, range)
+  }
+
+  function setNonReciprocalRange(range: string) {
+    applyDateRange(nonReciprocalQuery, range)
   }
 
   async function loadDictionaries() {
@@ -709,6 +751,21 @@ export function useLedgerApp() {
     const query = params.toString()
     await latestOnly('stats', () => api<any>(`/stats/overview${query ? `?${query}` : ''}`), (data) => {
       stats.value = data
+    })
+  }
+
+  async function loadTodos() {
+    await withTableLoading('todos', async () => {
+      const params = new URLSearchParams()
+      appendTodoQueryParams(params)
+      if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
+      const query = params.toString()
+      await latestOnly('todos', () => api<any>(`/stats/todos${query ? `?${query}` : ''}`), (data) => {
+        todos.value = data
+        todoQuery.total = data.records?.total || 0
+        todoQuery.page = data.records?.page || todoQuery.page
+        todoQuery.page_size = data.records?.page_size || todoQuery.page_size
+      })
     })
   }
 
@@ -742,6 +799,21 @@ export function useLedgerApp() {
     })
   }
 
+  async function loadNonReciprocal() {
+    await withTableLoading('nonreciprocal', async () => {
+      const params = new URLSearchParams()
+      appendNonReciprocalQueryParams(params)
+      if (isSuperAdmin.value && currentFamilyId.value) params.set('family_id', String(currentFamilyId.value))
+      const query = params.toString()
+      await latestOnly('nonreciprocal', () => api<any>(`/stats/non-reciprocal${query ? `?${query}` : ''}`), (data) => {
+        nonReciprocal.value = data
+        nonReciprocalQuery.total = data.records?.total || 0
+        nonReciprocalQuery.page = data.records?.page || nonReciprocalQuery.page
+        nonReciprocalQuery.page_size = data.records?.page_size || nonReciprocalQuery.page_size
+      })
+    })
+  }
+
   async function loadAudit() {
     await withTableLoading('audit', async () => {
       const params = new URLSearchParams({ page: String(auditQuery.page), page_size: String(auditQuery.page_size) })
@@ -749,9 +821,16 @@ export function useLedgerApp() {
       if (auditQuery.action) params.set('action', auditQuery.action)
       if (auditQuery.success !== null) params.set('success', String(auditQuery.success))
       const query = params.toString()
-      await latestOnly('audit', () => api<PageResult<any>>(`/audit-logs?${query}`), (data) => {
-        auditLogs.value = data.list
-        auditQuery.total = data.total
+      await latestOnly('audit', async () => {
+        const [logs, retention] = await Promise.all([
+          api<PageResult<any>>(`/audit-logs?${query}`),
+          api<any>('/audit-retention')
+        ])
+        return { logs, retention }
+      }, ({ logs, retention }) => {
+        auditLogs.value = logs.list
+        auditQuery.total = logs.total
+        auditRetention.value = retention
       })
     })
   }
@@ -875,6 +954,9 @@ export function useLedgerApp() {
       }
       await syncSavedRecordRows(savedRecord)
       await refreshCurrentRecordView()
+      if (showContactDetail.value && savedRecord?.contact_id === contactDetail.value?.contact?.id) {
+        await loadContactDetail(savedRecord.contact_id)
+      }
       editingRecordId.value = null
       if (options.keepDraft) {
         clearQuickRecordTarget()
@@ -1041,12 +1123,20 @@ export function useLedgerApp() {
     if (activeView.value === 'dashboard' || activeView.value === 'stats') applyStatsQuery()
   }, 250)
 
+  const debouncedTodoQuery = debounce(() => {
+    if (activeView.value === 'todos') applyTodoQuery()
+  }, 250)
+
   const debouncedReceivableQuery = debounce(() => {
     if (activeView.value === 'receivables') applyReceivableQuery()
   }, 250)
 
   const debouncedPayableQuery = debounce(() => {
     if (activeView.value === 'payables') applyPayableQuery()
+  }, 250)
+
+  const debouncedNonReciprocalQuery = debounce(() => {
+    if (activeView.value === 'nonreciprocal') applyNonReciprocalQuery()
   }, 250)
 
   function queryRecords() {
@@ -1108,6 +1198,16 @@ export function useLedgerApp() {
     applyStatsQuery()
   }
 
+  function queryTodos() {
+    todoQuery.page = 1
+    debouncedTodoQuery()
+  }
+
+  function resetTodoQuery() {
+    Object.assign(todoQuery, { page: 1, page_size: 10, total: 0, range: 'all', start_date: null, end_date: null })
+    applyTodoQuery()
+  }
+
   function queryReceivables() {
     receivableQuery.page = 1
     debouncedReceivableQuery()
@@ -1126,6 +1226,16 @@ export function useLedgerApp() {
   function resetPayableQuery() {
     Object.assign(payableQuery, { page: 1, page_size: 10, total: 0, range: 'all', start_date: null, end_date: null })
     applyPayableQuery()
+  }
+
+  function queryNonReciprocal() {
+    nonReciprocalQuery.page = 1
+    debouncedNonReciprocalQuery()
+  }
+
+  function resetNonReciprocalQuery() {
+    Object.assign(nonReciprocalQuery, { page: 1, page_size: 10, total: 0, range: 'all', start_date: null, end_date: null })
+    applyNonReciprocalQuery()
   }
 
   function openCreateFamily() {
@@ -1164,6 +1274,33 @@ export function useLedgerApp() {
     editingContactId.value = null
     Object.assign(contactForm, { name: '', owner_user_id: null, contact_type: contactTypeOptions.value[0]?.value || '', relation_type: relationTypeOptions.value[0]?.value || '', phone: '', address: '', remark: '', status: 'enabled' })
     showContactModal.value = true
+  }
+
+  async function loadContactDetail(id: number) {
+    contactDetailLoading.value = true
+    try {
+      contactDetail.value = await api(`/contacts/${id}`)
+    } finally {
+      contactDetailLoading.value = false
+    }
+  }
+
+  async function openContactDetail(row: any) {
+    showContactDetail.value = true
+    await loadContactDetail(row.id)
+  }
+
+  function closeContactDetail() {
+    showContactDetail.value = false
+    contactDetail.value = null
+  }
+
+  function openCreateRecordForContact(contact: any) {
+    editingRecordId.value = null
+    resetRecordDialogForm()
+    recordDialogForm.contact_id = contact.id
+    void loadRelatedRecords(recordDialogForm)
+    showRecordModal.value = true
   }
 
   function openEditContact(row: any) {
@@ -1392,6 +1529,7 @@ export function useLedgerApp() {
       openEditUser,
       openResetPassword,
       updateUserStatus: (row) => runAction(() => updateUserStatus(row)),
+      openContactDetail: (row) => runAction(() => openContactDetail(row)),
       openEditContact,
       deleteContact: (row) => runAction(() => deleteContact(row)),
       openEditDictType,
@@ -1441,6 +1579,7 @@ export function useLedgerApp() {
     auditColumns,
     auditLogs,
     auditQuery,
+    auditRetention,
     authReady,
     backupConfig,
     backupForm,
@@ -1453,8 +1592,11 @@ export function useLedgerApp() {
     changePassword,
     clearLoadedViews,
     closeContactModal,
+    closeContactDetail,
     closeRecordModal,
     contactColumns,
+    contactDetail,
+    contactDetailLoading,
     contactForm,
     contactOptions,
     contactQuery,
@@ -1475,10 +1617,12 @@ export function useLedgerApp() {
     debouncedAuditQuery,
     debouncedContactsQuery,
     debouncedLoadActiveView,
+    debouncedNonReciprocalQuery,
     debouncedRecordsQuery,
     debouncedPayableQuery,
     debouncedReceivableQuery,
     debouncedStatsQuery,
+    debouncedTodoQuery,
     deleteContact,
     deleteDict,
     deleteRecord,
@@ -1538,10 +1682,12 @@ export function useLedgerApp() {
     loading,
     loadInitialData,
     loadMe,
+    loadNonReciprocal,
     loadRecords,
     loadPayables,
     loadReceivables,
     loadStats,
+    loadTodos,
     loadUsers,
     loadVersion,
     loadView,
@@ -1551,14 +1697,18 @@ export function useLedgerApp() {
     menuItems,
     mobileNavRef,
     mustChangePassword,
+    nonReciprocal,
+    nonReciprocalQuery,
     occasionTypeOptions,
     openCreateContact,
+    openCreateRecordForContact,
     openCreateDict,
     openCreateDictType,
     openCreateFamily,
     openCreateRecord,
     openCreateUser,
     openEditContact,
+    openContactDetail,
     openEditDict,
     openEditDictType,
     openEditFamily,
@@ -1575,9 +1725,11 @@ export function useLedgerApp() {
     queryContacts,
     queryFamilies,
     queryRecords,
+    queryNonReciprocal,
     queryPayables,
     queryReceivables,
     queryStats,
+    queryTodos,
     queryUsers,
     dashboardRecordColumns,
     quickRecordKeepDraft,
@@ -1594,6 +1746,7 @@ export function useLedgerApp() {
     relationTypeOptions,
     resetContactQuery,
     resetFamilyQuery,
+    resetNonReciprocalQuery,
     resetAuditQuery,
     resetPasswordForm,
     resetPayableQuery,
@@ -1601,6 +1754,7 @@ export function useLedgerApp() {
     resetReceivableQuery,
     resetRecordForm,
     resetStatsQuery,
+    resetTodoQuery,
     resetUserQuery,
     resettingUser,
     resetUserPassword,
@@ -1613,10 +1767,13 @@ export function useLedgerApp() {
     setRecordDirection,
     setRecordReciprocityStatus,
     setPayableRange,
+    setNonReciprocalRange,
     setReceivableRange,
     setStatsRange,
+    setTodoRange,
     showBackupModal,
     showContactModal,
+    showContactDetail,
     showDictModal,
     showDictTypeModal,
     showFamilyModal,
@@ -1628,6 +1785,8 @@ export function useLedgerApp() {
     showUserModal,
     stats,
     statsQuery,
+    todos,
+    todoQuery,
     switchView,
     tableLoading,
     token,

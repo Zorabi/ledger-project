@@ -8,7 +8,7 @@ const docTemplate = `{
     "info": {
         "description": "家庭租户礼尚往来记录系统后端接口。",
         "title": "礼尚往来 API",
-        "version": "1.5.0.1"
+        "version": "1.6.0.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -151,153 +151,132 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/login": {
-            "post": {
-                "tags": [
-                    "认证"
-                ],
-                "summary": "账号密码登录",
-                "description": "账号密码登录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/LoginRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/AuthResult"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "429": {
-                        "description": "登录失败次数过多，临时封禁",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/refresh": {
-            "post": {
-                "tags": [
-                    "认证"
-                ],
-                "summary": "刷新访问令牌",
-                "description": "刷新访问令牌",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/RefreshRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/me": {
+        "/audit-logs": {
             "get": {
                 "tags": [
-                    "认证"
+                    "审计日志"
                 ],
-                "summary": "当前登录用户",
-                "description": "当前登录用户",
+                "summary": "审计日志列表",
+                "description": "审计日志列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "action",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "success",
+                        "in": "query",
+                        "type": "boolean",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "keyword_actions",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "keyword_resources",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "keyword_success",
+                        "in": "query",
+                        "type": "boolean",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/PageAuditLog"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/audit-retention": {
+            "get": {
+                "tags": [
+                    "审计"
+                ],
+                "summary": "审计日志留存策略",
+                "description": "返回当前审计日志保留天数和可选保留天数",
                 "consumes": [
                     "application/json"
                 ],
@@ -310,78 +289,6 @@ const docTemplate = `{
                     }
                 ],
                 "parameters": [],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/User"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "tags": [
-                    "认证"
-                ],
-                "summary": "退出登录",
-                "description": "退出登录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/RefreshRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "成功响应",
@@ -497,112 +404,18 @@ const docTemplate = `{
                 }
             }
         },
-        "/families": {
-            "get": {
-                "tags": [
-                    "家庭"
-                ],
-                "summary": "家庭列表",
-                "description": "家庭列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page_size",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/PageFamily"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            },
+        "/auth/login": {
             "post": {
                 "tags": [
-                    "家庭"
+                    "认证"
                 ],
-                "summary": "创建家庭",
-                "description": "创建家庭",
+                "summary": "账号密码登录",
+                "description": "账号密码登录",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
                     "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
                 ],
                 "parameters": [
                     {
@@ -611,7 +424,7 @@ const docTemplate = `{
                         "required": true,
                         "description": "",
                         "schema": {
-                            "$ref": "#/definitions/FamilyRequest"
+                            "$ref": "#/definitions/LoginRequest"
                         }
                     }
                 ],
@@ -626,7 +439,7 @@ const docTemplate = `{
                             ],
                             "properties": {
                                 "data": {
-                                    "$ref": "#/definitions/Family"
+                                    "$ref": "#/definitions/AuthResult"
                                 }
                             }
                         }
@@ -654,17 +467,23 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
+                    },
+                    "429": {
+                        "description": "登录失败次数过多，临时封禁",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
                     }
                 }
             }
         },
-        "/families/{id}": {
-            "put": {
+        "/auth/logout": {
+            "post": {
                 "tags": [
-                    "家庭"
+                    "认证"
                 ],
-                "summary": "编辑家庭",
-                "description": "编辑家庭",
+                "summary": "退出登录",
+                "description": "退出登录",
                 "consumes": [
                     "application/json"
                 ],
@@ -678,103 +497,12 @@ const docTemplate = `{
                 ],
                 "parameters": [
                     {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "description": "",
                         "schema": {
-                            "$ref": "#/definitions/FamilyRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/Family"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/families/{id}/status": {
-            "patch": {
-                "tags": [
-                    "家庭"
-                ],
-                "summary": "更新家庭状态",
-                "description": "更新家庭状态",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "status": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/RefreshRequest"
                         }
                     }
                 ],
@@ -821,13 +549,80 @@ const docTemplate = `{
                 }
             }
         },
-        "/users": {
+        "/auth/refresh": {
+            "post": {
+                "tags": [
+                    "认证"
+                ],
+                "summary": "刷新访问令牌",
+                "description": "刷新访问令牌",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/RefreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backup/config": {
             "get": {
                 "tags": [
-                    "用户"
+                    "备份"
                 ],
-                "summary": "用户列表",
-                "description": "用户列表",
+                "summary": "备份配置详情",
+                "description": "备份配置详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -841,21 +636,232 @@ const docTemplate = `{
                 ],
                 "parameters": [
                     {
-                        "name": "keyword",
+                        "name": "family_id",
                         "in": "query",
-                        "type": "string",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/BackupConfig"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "备份"
+                ],
+                "summary": "更新备份配置",
+                "description": "更新备份配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
                         "required": false,
                         "description": ""
                     },
                     {
-                        "name": "role",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/BackupConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/BackupConfig"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backup/export": {
+            "post": {
+                "tags": [
+                    "备份"
+                ],
+                "summary": "手动导出备份",
+                "description": "手动导出备份",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
                         "in": "query",
-                        "type": "string",
+                        "type": "integer",
                         "required": false,
                         "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
                     },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backup/jobs": {
+            "get": {
+                "tags": [
+                    "备份"
+                ],
+                "summary": "备份日志列表",
+                "description": "备份日志列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
                     {
                         "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "trigger_type",
                         "in": "query",
                         "type": "string",
                         "required": false,
@@ -894,836 +900,7 @@ const docTemplate = `{
                             ],
                             "properties": {
                                 "data": {
-                                    "$ref": "#/definitions/PageUser"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "tags": [
-                    "用户"
-                ],
-                "summary": "创建用户",
-                "description": "创建用户",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/UserRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/User"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/{id}": {
-            "put": {
-                "tags": [
-                    "用户"
-                ],
-                "summary": "编辑用户",
-                "description": "编辑用户",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/UserRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/User"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/{id}/status": {
-            "patch": {
-                "tags": [
-                    "用户"
-                ],
-                "summary": "启用或禁用用户",
-                "description": "启用或禁用用户",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "status": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/{id}/reset-password": {
-            "post": {
-                "tags": [
-                    "用户"
-                ],
-                "summary": "重置用户密码",
-                "description": "重置用户密码",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "password": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/dictionary-types": {
-            "get": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "字典类型列表",
-                "description": "字典类型列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/PageDictionaryType"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "创建字典类型",
-                "description": "创建字典类型",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/DictionaryTypeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/DictionaryType"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/dictionary-types/{id}": {
-            "put": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "编辑字典类型",
-                "description": "编辑字典类型",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/DictionaryTypeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/DictionaryType"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/dictionary-items": {
-            "get": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "字典项列表",
-                "description": "字典项列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page_size",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/PageDictionaryItem"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "创建字典项",
-                "description": "创建字典项",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/DictionaryItemRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/DictionaryItem"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/dictionary-items/{id}": {
-            "put": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "编辑字典项",
-                "description": "编辑字典项",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/DictionaryItemRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/DictionaryItem"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "tags": [
-                    "数据字典"
-                ],
-                "summary": "删除字典项",
-                "description": "删除字典项",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "type": "integer",
-                        "required": true,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "type": "object"
+                                    "$ref": "#/definitions/PageBackupJob"
                                 }
                             }
                         }
@@ -2142,6 +1319,842 @@ const docTemplate = `{
                         "type": "integer",
                         "required": true,
                         "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dictionary-items": {
+            "get": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "字典项列表",
+                "description": "字典项列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/PageDictionaryItem"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "创建字典项",
+                "description": "创建字典项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/DictionaryItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/DictionaryItem"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dictionary-items/{id}": {
+            "put": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "编辑字典项",
+                "description": "编辑字典项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/DictionaryItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/DictionaryItem"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "删除字典项",
+                "description": "删除字典项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dictionary-types": {
+            "get": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "字典类型列表",
+                "description": "字典类型列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/PageDictionaryType"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "创建字典类型",
+                "description": "创建字典类型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/DictionaryTypeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/DictionaryType"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dictionary-types/{id}": {
+            "put": {
+                "tags": [
+                    "数据字典"
+                ],
+                "summary": "编辑字典类型",
+                "description": "编辑字典类型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/DictionaryTypeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/DictionaryType"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/families": {
+            "get": {
+                "tags": [
+                    "家庭"
+                ],
+                "summary": "家庭列表",
+                "description": "家庭列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/PageFamily"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "家庭"
+                ],
+                "summary": "创建家庭",
+                "description": "创建家庭",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/FamilyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/Family"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/families/{id}": {
+            "put": {
+                "tags": [
+                    "家庭"
+                ],
+                "summary": "编辑家庭",
+                "description": "编辑家庭",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/FamilyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/Family"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/families/{id}/status": {
+            "patch": {
+                "tags": [
+                    "家庭"
+                ],
+                "summary": "更新家庭状态",
+                "description": "更新家庭状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 ],
                 "responses": {
@@ -2632,641 +2645,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/stats/overview": {
-            "get": {
-                "tags": [
-                    "统计"
-                ],
-                "summary": "统计概览",
-                "description": "统计概览",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "start_date",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "end_date",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/StatsOverview"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/audit-logs": {
-            "get": {
-                "tags": [
-                    "审计日志"
-                ],
-                "summary": "审计日志列表",
-                "description": "审计日志列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "action",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "success",
-                        "in": "query",
-                        "type": "boolean",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "keyword_actions",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "keyword_resources",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "keyword_success",
-                        "in": "query",
-                        "type": "boolean",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page_size",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/PageAuditLog"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/backup/config": {
-            "get": {
-                "tags": [
-                    "备份"
-                ],
-                "summary": "备份配置详情",
-                "description": "备份配置详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/BackupConfig"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "tags": [
-                    "备份"
-                ],
-                "summary": "更新备份配置",
-                "description": "更新备份配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "$ref": "#/definitions/BackupConfigRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/BackupConfig"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/backup/export": {
-            "post": {
-                "tags": [
-                    "备份"
-                ],
-                "summary": "手动导出备份",
-                "description": "手动导出备份",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "type": "string",
-                                    "format": "binary"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/backup/jobs": {
-            "get": {
-                "tags": [
-                    "备份"
-                ],
-                "summary": "备份日志列表",
-                "description": "备份日志列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "trigger_type",
-                        "in": "query",
-                        "type": "string",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "page_size",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/PageBackupJob"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/imports/template": {
-            "get": {
-                "tags": [
-                    "导入恢复"
-                ],
-                "summary": "下载手工导入模板",
-                "description": "下载面向普通用户的手工导入 Excel 模板，只包含业务可理解的往来流水和往来对象字段",
-                "produces": [
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Excel 文件",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/imports/dry-run": {
-            "post": {
-                "tags": [
-                    "导入恢复"
-                ],
-                "summary": "上传完整备份并执行恢复校验",
-                "description": "上传系统导出的完整备份 Excel 并执行恢复校验，校验阶段不写入业务数据",
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "family_id",
-                        "in": "query",
-                        "type": "integer",
-                        "required": false,
-                        "description": ""
-                    },
-                    {
-                        "name": "file",
-                        "in": "formData",
-                        "type": "file",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功响应",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/ApiResponse"
-                                }
-                            ],
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/definitions/ImportJob"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "错误响应",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/imports": {
             "get": {
                 "tags": [
@@ -3519,15 +2897,18 @@ const docTemplate = `{
                 }
             }
         },
-        "/imports/manual/template": {
-            "get": {
+        "/imports/backup/dry-run": {
+            "post": {
                 "tags": [
                     "导入恢复"
                 ],
-                "summary": "下载手工导入模板",
-                "description": "下载面向普通用户的手工导入 Excel 模板，只包含业务可理解的往来流水和往来对象字段",
+                "summary": "上传完整备份并执行恢复校验",
+                "description": "上传系统导出的完整备份 Excel 并执行恢复校验，校验阶段不写入业务数据",
+                "consumes": [
+                    "multipart/form-data"
+                ],
                 "produces": [
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    "application/json"
                 ],
                 "security": [
                     {
@@ -3541,13 +2922,104 @@ const docTemplate = `{
                         "type": "integer",
                         "required": false,
                         "description": ""
+                    },
+                    {
+                        "name": "file",
+                        "in": "formData",
+                        "type": "file",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Excel 文件",
+                        "description": "成功响应",
                         "schema": {
-                            "type": "file"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/ImportJob"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/imports/dry-run": {
+            "post": {
+                "tags": [
+                    "导入恢复"
+                ],
+                "summary": "上传完整备份并执行恢复校验",
+                "description": "上传系统导出的完整备份 Excel 并执行恢复校验，校验阶段不写入业务数据",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "file",
+                        "in": "formData",
+                        "type": "file",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/ImportJob"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
@@ -3635,18 +3107,15 @@ const docTemplate = `{
                 }
             }
         },
-        "/imports/backup/dry-run": {
-            "post": {
+        "/imports/manual/template": {
+            "get": {
                 "tags": [
                     "导入恢复"
                 ],
-                "summary": "上传完整备份并执行恢复校验",
-                "description": "上传系统导出的完整备份 Excel 并执行恢复校验，校验阶段不写入业务数据",
-                "consumes": [
-                    "multipart/form-data"
-                ],
+                "summary": "下载手工导入模板",
+                "description": "下载面向普通用户的手工导入 Excel 模板，只包含业务可理解的往来流水和往来对象字段",
                 "produces": [
-                    "application/json"
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 ],
                 "security": [
                     {
@@ -3660,14 +3129,95 @@ const docTemplate = `{
                         "type": "integer",
                         "required": false,
                         "description": ""
-                    },
-                    {
-                        "name": "file",
-                        "in": "formData",
-                        "type": "file",
-                        "required": true
                     }
                 ],
+                "responses": {
+                    "200": {
+                        "description": "Excel 文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/imports/template": {
+            "get": {
+                "tags": [
+                    "导入恢复"
+                ],
+                "summary": "下载手工导入模板",
+                "description": "下载面向普通用户的手工导入 Excel 模板，只包含业务可理解的往来流水和往来对象字段",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel 文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/me": {
+            "get": {
+                "tags": [
+                    "认证"
+                ],
+                "summary": "当前登录用户",
+                "description": "当前登录用户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [],
                 "responses": {
                     "200": {
                         "description": "成功响应",
@@ -3679,7 +3229,7 @@ const docTemplate = `{
                             ],
                             "properties": {
                                 "data": {
-                                    "$ref": "#/definitions/ImportJob"
+                                    "$ref": "#/definitions/User"
                                 }
                             }
                         }
@@ -3697,6 +3247,292 @@ const docTemplate = `{
                         }
                     },
                     "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats/non-reciprocal": {
+            "get": {
+                "tags": [
+                    "统计"
+                ],
+                "summary": "无需回礼分析",
+                "description": "统计无需回礼流水的金额、占比、趋势、对象、事项、关系和归属成员分布",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "start_date",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "end_date",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": "页码"
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": "每页数量"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats/overview": {
+            "get": {
+                "tags": [
+                    "统计"
+                ],
+                "summary": "统计概览",
+                "description": "统计概览",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "start_date",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "end_date",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/StatsOverview"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats/payables": {
+            "get": {
+                "tags": [
+                    "统计"
+                ],
+                "summary": "礼金送出分析",
+                "description": "统计我方收礼后仍待我方回礼或未关联回礼流水的记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "start_date",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "end_date",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": "页码"
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": "每页数量"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
                         "description": "错误响应",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
@@ -3803,13 +3639,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/stats/payables": {
+        "/stats/todos": {
             "get": {
                 "tags": [
                     "统计"
                 ],
-                "summary": "礼金送出分析",
-                "description": "统计我方收礼后仍待我方回礼或未关联回礼流水的记录",
+                "summary": "待办中心",
+                "description": "统计待回礼、已回礼未关联流水和大金额关注等需要关注的数据",
                 "consumes": [
                     "application/json"
                 ],
@@ -3856,6 +3692,428 @@ const docTemplate = `{
                         "type": "integer",
                         "required": false,
                         "description": "每页数量"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "tags": [
+                    "用户"
+                ],
+                "summary": "用户列表",
+                "description": "用户列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "role",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "type": "string",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "family_id",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "type": "integer",
+                        "required": false,
+                        "description": ""
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/PageUser"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "用户"
+                ],
+                "summary": "创建用户",
+                "description": "创建用户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/UserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/User"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}": {
+            "put": {
+                "tags": [
+                    "用户"
+                ],
+                "summary": "编辑用户",
+                "description": "编辑用户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/UserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/definitions/User"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}/reset-password": {
+            "post": {
+                "tags": [
+                    "用户"
+                ],
+                "summary": "重置用户密码",
+                "description": "重置用户密码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "password": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/ApiResponse"
+                                }
+                            ],
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "错误响应",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}/status": {
+            "patch": {
+                "tags": [
+                    "用户"
+                ],
+                "summary": "启用或禁用用户",
+                "description": "启用或禁用用户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "type": "integer",
+                        "required": true,
+                        "description": ""
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 ],
                 "responses": {
@@ -4921,11 +5179,12 @@ const docTemplate = `{
             }
         }
     }
-}`
+}
+`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.5.0.1",
+	Version:          "1.6.0.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},

@@ -928,19 +928,21 @@ h1 {
 
 .rank-list,
 .summary-list,
-.metric-bars {
+.metric-bars,
+.timeline-bars {
   display: grid;
   gap: 10px;
 }
 
 .rank-list,
 .metric-bars {
-  grid-template-rows: repeat(5, 72px);
+  grid-auto-rows: minmax(72px, auto);
 }
 
 .rank-list article,
 .summary-list article,
-.metric-bars article {
+.metric-bars article,
+.timeline-bars article {
   display: grid;
   min-height: 54px;
   align-items: center;
@@ -1000,7 +1002,8 @@ h1 {
 }
 
 .summary-list article,
-.metric-bars article {
+.metric-bars article,
+.timeline-bars article {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
@@ -1009,7 +1012,8 @@ h1 {
 }
 
 .summary-list span,
-.metric-bars span {
+.metric-bars span,
+.timeline-bars span {
   min-width: 0;
   overflow: hidden;
   color: var(--color-ink);
@@ -1019,11 +1023,42 @@ h1 {
 }
 
 .summary-list strong,
-.metric-bars strong {
+.metric-bars strong,
+.timeline-bars strong {
   color: var(--color-primary-deep);
   font-size: 15px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.timeline-bars {
+  max-height: 410px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.timeline-bars em {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.nonreciprocal-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.todo-view .analysis-grid {
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.todo-view .analysis-grid > :nth-child(3) {
+  grid-row: span 2;
+}
+
+.nonreciprocal-grid > :nth-child(5) {
+  grid-column: 1 / -1;
 }
 
 .cell-muted {
@@ -1139,6 +1174,162 @@ h1 {
   color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.contact-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.contact-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.contact-detail-head div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.contact-detail-head strong {
+  color: var(--color-ink);
+  font-size: 24px;
+  font-weight: 880;
+  line-height: 1.16;
+}
+
+.contact-detail-head span,
+.detail-info-grid span,
+.detail-section h2 {
+  color: var(--color-muted);
+}
+
+.contact-detail-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-info-grid article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(202, 216, 210, 0.62);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.detail-info-grid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-note {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(202, 216, 210, 0.62);
+  border-radius: var(--radius-md);
+  color: #33454d;
+  background: rgba(255, 255, 255, 0.68);
+  line-height: 1.65;
+}
+
+.contact-detail-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.contact-detail-metrics article {
+  min-height: 88px;
+  padding: 14px;
+}
+
+.contact-detail-metrics strong {
+  font-size: 22px;
+}
+
+.detail-section {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-section h2 {
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.detail-record-list,
+.timeline-list {
+  display: grid;
+  gap: 9px;
+}
+
+.detail-record-list article,
+.timeline-list article {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(202, 216, 210, 0.62);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(249, 253, 251, 0.8));
+}
+
+.detail-record-list article {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.timeline-list article {
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+}
+
+.detail-record-list div,
+.timeline-list div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.detail-record-list strong,
+.timeline-list strong {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-record-list span,
+.timeline-list span,
+.timeline-list time {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-record-list em,
+.timeline-list em {
+  color: var(--color-primary-deep);
+  font-style: normal;
+  font-weight: 900;
   white-space: nowrap;
 }
 
@@ -1582,6 +1773,51 @@ h1 {
   .mobile-item {
     overflow: hidden;
   }
+
+  .quick-record-card :where(.n-form-item) {
+    margin-bottom: 10px;
+  }
+
+  .quick-record-card .direction-choice {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quick-record-card .direction-choice button {
+    min-height: 58px;
+    padding: 10px 11px;
+  }
+
+  .quick-record-card .direction-choice button span {
+    display: none;
+  }
+
+  .quick-record-card :where(.n-input-number, .n-date-picker, .n-base-selection) {
+    width: 100%;
+  }
+
+  .contact-detail-head,
+  .contact-detail-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .contact-detail-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-info-grid,
+  .contact-detail-metrics,
+  .timeline-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-detail-metrics article {
+    min-height: 76px;
+  }
+
+  .timeline-list article {
+    align-items: start;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1638,11 +1874,19 @@ h1 {
 
   .metrics,
   .analysis-grid,
+  .todo-view .analysis-grid,
+  .nonreciprocal-grid,
   .summary-grid,
   .skeleton-grid,
   .form-row,
   .button-row {
     grid-template-columns: 1fr;
+  }
+
+  .todo-view .analysis-grid > :nth-child(3),
+  .nonreciprocal-grid > :nth-child(5) {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .metrics article,
@@ -1660,6 +1904,10 @@ h1 {
 
   .direction-choice {
     grid-template-columns: 1fr;
+  }
+
+  .quick-record-card .direction-choice {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mobile-item {

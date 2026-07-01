@@ -71,7 +71,7 @@ const emit = defineEmits<{
     </div>
 
     <section class="split">
-      <n-card title="快速录入" size="small">
+      <n-card title="快速录入" size="small" class="quick-record-card">
         <template #header-extra>
           <div class="quick-draft-switch">
             <span>保留表单</span>

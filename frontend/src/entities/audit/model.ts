@@ -23,7 +23,8 @@ export const auditActionLabels: Record<string, string> = {
   update_backup_config: '更新备份配置',
   manual_export: '手动导出',
   import_dry_run: '导入校验',
-  execute_import: '执行导入'
+  execute_import: '执行导入',
+  cleanup_audit_logs: '清理审计日志'
 }
 
 export const auditResourceLabels: Record<string, string> = {
@@ -37,7 +38,8 @@ export const auditResourceLabels: Record<string, string> = {
   backup_job: '备份任务',
   import_job: '导入批次',
   user_session: '用户会话',
-  auth_throttle: '登录防护'
+  auth_throttle: '登录防护',
+  audit_log: '审计日志'
 }
 
 export function actionText(value: string) {

@@ -17,6 +17,7 @@ const emit = defineEmits<{
   query: []
   resetQuery: []
   load: []
+  detail: [contact: any]
   create: []
   edit: [contact: any]
   delete: [contact: any]
@@ -82,6 +83,7 @@ const emit = defineEmits<{
           <p>{{ item.phone || '未填写电话' }}</p>
           <small>{{ item.address || '未填写地址' }}</small>
           <div class="item-actions">
+            <n-button size="small" secondary @click="emit('detail', item)">详情</n-button>
             <n-button size="small" secondary @click="emit('edit', item)">编辑</n-button>
             <n-popconfirm @positive-click="emit('delete', item)">
               <template #trigger><n-button size="small" secondary type="error">删除</n-button></template>

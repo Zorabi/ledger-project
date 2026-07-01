@@ -2,6 +2,7 @@ export type Role = 'super_admin' | 'family_admin' | 'member'
 
 export type ViewKey =
   | 'dashboard'
+  | 'todos'
   | 'families'
   | 'users'
   | 'contacts'
@@ -10,6 +11,7 @@ export type ViewKey =
   | 'stats'
   | 'receivables'
   | 'payables'
+  | 'nonreciprocal'
   | 'backup'
   | 'imports'
   | 'audit'

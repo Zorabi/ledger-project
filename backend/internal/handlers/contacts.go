@@ -118,9 +118,32 @@ func (h *AppHandler) GetContact(c *gin.Context) {
 	if !scopedFamilyRecord(c, h.db.Preload("OwnerUser"), auth, &item) {
 		return
 	}
-	var pending []models.GiftRecord
-	h.db.Where("family_id = ? AND contact_id = ? AND reciprocity_status = ?", item.FamilyID, item.ID, models.ReciprocityPending).Find(&pending)
-	ok(c, gin.H{"contact": item, "summary": h.contactSummary(item.FamilyID, item.ID), "pending_records": pending})
+	var todoRecords []models.GiftRecord
+	h.db.
+		Where("family_id = ? AND contact_id = ? AND (reciprocity_status = ? OR (reciprocity_status = ? AND related_record_id IS NULL))", item.FamilyID, item.ID, models.ReciprocityPending, models.ReciprocityDone).
+		Order("occurred_on asc, amount_cents desc, id asc").
+		Limit(20).
+		Find(&todoRecords)
+	var timeline []models.GiftRecord
+	h.db.
+		Where("family_id = ? AND contact_id = ?", item.FamilyID, item.ID).
+		Order("occurred_on desc, id desc").
+		Limit(30).
+		Find(&timeline)
+	var linked []models.GiftRecord
+	h.db.
+		Where("family_id = ? AND contact_id = ? AND reciprocity_status = ? AND related_record_id IS NOT NULL", item.FamilyID, item.ID, models.ReciprocityDone).
+		Order("occurred_on desc, id desc").
+		Limit(20).
+		Find(&linked)
+	ok(c, gin.H{
+		"contact":         item,
+		"summary":         h.contactSummary(item.FamilyID, item.ID),
+		"pending_records": todoRecords,
+		"todo_records":    todoRecords,
+		"timeline":        timeline,
+		"linked_records":  linked,
+	})
 }
 
 func (h *AppHandler) UpdateContact(c *gin.Context) {
@@ -211,7 +234,9 @@ func contactNameTaken(db *gorm.DB, familyID uint, normalizedName string, exclude
 
 func (h *AppHandler) contactSummary(familyID, contactID uint) gin.H {
 	var inAmount, outAmount int64
+	var recordCount int64
 	h.db.Model(&models.GiftRecord{}).Where("family_id = ? AND contact_id = ? AND direction = ?", familyID, contactID, models.DirectionIn).Select("COALESCE(SUM(amount_cents),0)").Scan(&inAmount)
 	h.db.Model(&models.GiftRecord{}).Where("family_id = ? AND contact_id = ? AND direction = ?", familyID, contactID, models.DirectionOut).Select("COALESCE(SUM(amount_cents),0)").Scan(&outAmount)
-	return gin.H{"received_cents": inAmount, "given_cents": outAmount, "net_cents": inAmount - outAmount}
+	h.db.Model(&models.GiftRecord{}).Where("family_id = ? AND contact_id = ?", familyID, contactID).Count(&recordCount)
+	return gin.H{"received_cents": inAmount, "given_cents": outAmount, "net_cents": inAmount - outAmount, "record_count": recordCount}
 }

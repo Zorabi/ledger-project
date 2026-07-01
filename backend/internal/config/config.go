@@ -15,6 +15,7 @@ type Config struct {
 	Database   DatabaseConfig
 	JWT        JWTConfig
 	Security   SecurityConfig
+	Audit      AuditConfig
 	Bootstrap  BootstrapConfig
 	Email      EmailConfig
 	Encryption EncryptionConfig
@@ -77,6 +78,10 @@ type SecurityConfig struct {
 	LoginCleanupAfterDays int `mapstructure:"login_cleanup_after_days"`
 }
 
+type AuditConfig struct {
+	RetentionDays int `mapstructure:"retention_days"`
+}
+
 type BootstrapConfig struct {
 	SuperAdminUsername string `mapstructure:"super_admin_username"`
 	SuperAdminPassword string `mapstructure:"super_admin_password"`
@@ -109,7 +114,7 @@ func LoadConfig() {
 	v.SetDefault("server.page.default_page_num", 1)
 	v.SetDefault("server.page.max_page_size", 100)
 	v.SetDefault("app.name", "礼尚往来")
-	v.SetDefault("app.version", "1.5.0.1")
+	v.SetDefault("app.version", "1.6.0.0")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.console", true)
 	v.SetDefault("log.file", true)
@@ -128,6 +133,7 @@ func LoadConfig() {
 	v.SetDefault("security.login_window_minutes", 15)
 	v.SetDefault("security.login_lock_minutes", 30)
 	v.SetDefault("security.login_cleanup_after_days", 7)
+	v.SetDefault("audit.retention_days", 30)
 	v.SetDefault("bootstrap.super_admin_username", "admin")
 	v.SetDefault("bootstrap.super_admin_password", "ChangeMe123!")
 
@@ -163,6 +169,7 @@ func LoadConfig() {
 		"security.login_window_minutes",
 		"security.login_lock_minutes",
 		"security.login_cleanup_after_days",
+		"audit.retention_days",
 		"bootstrap.super_admin_username",
 		"bootstrap.super_admin_password",
 		"email.host",
@@ -215,6 +222,16 @@ func LoadConfig() {
 	}
 	if AppConfig.Security.LoginCleanupAfterDays <= 0 {
 		AppConfig.Security.LoginCleanupAfterDays = 7
+	}
+	AppConfig.Audit.RetentionDays = normalizeAuditRetentionDays(AppConfig.Audit.RetentionDays)
+}
+
+func normalizeAuditRetentionDays(days int) int {
+	switch days {
+	case 30, 60, 90:
+		return days
+	default:
+		return 30
 	}
 }
 

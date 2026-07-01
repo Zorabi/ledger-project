@@ -39,6 +39,9 @@ func (s *Scheduler) loop(ctx context.Context, interval time.Duration) {
 			if err := s.CleanupSessions(); err != nil {
 				slog.Error("cleanup sessions failed", "err", err)
 			}
+			if err := s.CleanupAuditLogs(); err != nil {
+				slog.Error("cleanup audit logs failed", "err", err)
+			}
 			if err := s.RunDueBackups(); err != nil {
 				slog.Error("run due backups failed", "err", err)
 			}
@@ -58,6 +61,29 @@ func (s *Scheduler) CleanupSessions() error {
 	}
 	throttleCutoff := now.AddDate(0, 0, -config.AppConfig.Security.LoginCleanupAfterDays)
 	return s.db.Where("updated_at < ?", throttleCutoff).Delete(&models.AuthThrottle{}).Error
+}
+
+func (s *Scheduler) CleanupAuditLogs() error {
+	now := time.Now()
+	retentionDays := config.AppConfig.Audit.RetentionDays
+	if retentionDays != 30 && retentionDays != 60 && retentionDays != 90 {
+		retentionDays = 30
+	}
+	cutoff := now.AddDate(0, 0, -retentionDays)
+	result := s.db.Where("created_at < ?", cutoff).Delete(&models.AuditLog{})
+	if result.Error != nil {
+		return result.Error
+	}
+	return s.db.Create(&models.AuditLog{
+		Action:       "cleanup_audit_logs",
+		ResourceType: "audit_log",
+		Success:      true,
+		Detail: models.JSONMap{
+			"retention_days": retentionDays,
+			"cutoff":         cutoff.Format(time.RFC3339),
+			"deleted_count":  result.RowsAffected,
+		},
+	}).Error
 }
 
 func (s *Scheduler) RunDueBackups() error {

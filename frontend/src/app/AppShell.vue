@@ -7,14 +7,17 @@ import { useLedgerApp } from './useLedgerApp'
 import type { ViewKey } from '../shared/types'
 import AuditView from '../views/AuditView.vue'
 import BackupView from '../views/BackupView.vue'
+import ContactDetailDrawer from '../views/ContactDetailDrawer.vue'
 import ContactsView from '../views/ContactsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import DictionariesView from '../views/DictionariesView.vue'
 import FamiliesView from '../views/FamiliesView.vue'
 import ImportsView from '../views/ImportsView.vue'
+import NonReciprocalView from '../views/NonReciprocalView.vue'
 import RecordsView from '../views/RecordsView.vue'
 import ReceivablesView from '../views/ReceivablesView.vue'
 import StatsView from '../views/StatsView.vue'
+import TodosView from '../views/TodosView.vue'
 import UsersView from '../views/UsersView.vue'
 
 const {
@@ -28,6 +31,7 @@ const {
   auditColumns,
   auditLogs,
   auditQuery,
+  auditRetention,
   authReady,
   backupConfig,
   backupForm,
@@ -40,8 +44,11 @@ const {
   changePassword,
   clearLoadedViews,
   closeContactModal,
+  closeContactDetail,
   closeRecordModal,
   contactColumns,
+  contactDetail,
+  contactDetailLoading,
   contactForm,
   contactOptions,
   contactQuery,
@@ -62,10 +69,12 @@ const {
   debouncedAuditQuery,
   debouncedContactsQuery,
   debouncedLoadActiveView,
+  debouncedNonReciprocalQuery,
   debouncedRecordsQuery,
   debouncedPayableQuery,
   debouncedReceivableQuery,
   debouncedStatsQuery,
+  debouncedTodoQuery,
   deleteContact,
   deleteDict,
   deleteRecord,
@@ -123,10 +132,12 @@ const {
   loading,
   loadInitialData,
   loadMe,
+  loadNonReciprocal,
   loadRecords,
   loadPayables,
   loadReceivables,
   loadStats,
+  loadTodos,
   loadUsers,
   loadVersion,
   loadView,
@@ -136,14 +147,18 @@ const {
   menuItems,
   mobileNavRef,
   mustChangePassword,
+  nonReciprocal,
+  nonReciprocalQuery,
   occasionTypeOptions,
   openCreateContact,
+  openCreateRecordForContact,
   openCreateDict,
   openCreateDictType,
   openCreateFamily,
   openCreateRecord,
   openCreateUser,
   openEditContact,
+  openContactDetail,
   openEditDict,
   openEditDictType,
   openEditFamily,
@@ -160,9 +175,11 @@ const {
   queryContacts,
   queryFamilies,
   queryRecords,
+  queryNonReciprocal,
   queryPayables,
   queryReceivables,
   queryStats,
+  queryTodos,
   queryUsers,
   dashboardRecordColumns,
   quickRecordKeepDraft,
@@ -180,12 +197,14 @@ const {
   resetContactQuery,
   resetFamilyQuery,
   resetAuditQuery,
+  resetNonReciprocalQuery,
   resetPasswordForm,
   resetPayableQuery,
   resetRecordQuery,
   resetReceivableQuery,
   resetRecordForm,
   resetStatsQuery,
+  resetTodoQuery,
   resetUserQuery,
   resettingUser,
   resetUserPassword,
@@ -197,11 +216,14 @@ const {
   selectedFamilyId,
   setRecordDirection,
   setRecordReciprocityStatus,
+  setNonReciprocalRange,
   setPayableRange,
   setReceivableRange,
   setStatsRange,
+  setTodoRange,
   showBackupModal,
   showContactModal,
+  showContactDetail,
   showDictModal,
   showDictTypeModal,
   showFamilyModal,
@@ -213,6 +235,8 @@ const {
   showUserModal,
   stats,
   statsQuery,
+  todos,
+  todoQuery,
   switchView,
   tableLoading,
   token,
@@ -374,6 +398,22 @@ const {
             @delete-record="(record) => runAction(() => deleteRecord(record))"
           />
 
+          <TodosView
+            v-show="activeView === 'todos'"
+            key="todos-view"
+            :todos="todos"
+            :query="todoQuery"
+            :loading="Boolean(tableLoading.todos)"
+            :money="money"
+            :dictionary-label="dictionaryLabel"
+            :direction-text="directionText"
+            :format-date="formatDate"
+            @query="queryTodos"
+            @reset="resetTodoQuery"
+            @load="loadTodos"
+            @set-range="setTodoRange"
+          />
+
           <FamiliesView
             v-show="activeView === 'families'"
             key="families-view"
@@ -425,6 +465,7 @@ const {
             @query="queryContacts"
             @reset-query="resetContactQuery"
             @load="loadContacts"
+            @detail="(contact) => runAction(() => openContactDetail(contact))"
             @create="openCreateContact"
             @edit="openEditContact"
             @delete="(contact) => runAction(() => deleteContact(contact))"
@@ -541,6 +582,23 @@ const {
             @set-range="setPayableRange"
           />
 
+          <NonReciprocalView
+            v-show="activeView === 'nonreciprocal'"
+            key="nonreciprocal-view"
+            :data="nonReciprocal"
+            :query="nonReciprocalQuery"
+            :loading="Boolean(tableLoading.nonreciprocal)"
+            :money="money"
+            :money-compact="moneyCompact"
+            :dictionary-label="dictionaryLabel"
+            :direction-text="directionText"
+            :format-date="formatDate"
+            @query="queryNonReciprocal"
+            @reset="resetNonReciprocalQuery"
+            @load="loadNonReciprocal"
+            @set-range="setNonReciprocalRange"
+          />
+
           <BackupView
             v-show="activeView === 'backup'"
             key="backup-view"
@@ -584,6 +642,7 @@ const {
             :logs="auditLogs"
             :columns="auditColumns"
             :loading="Boolean(tableLoading.audit)"
+            :retention="auditRetention"
             :action-text="actionText"
             :status-text="statusText"
             :resource-text="resourceText"
@@ -667,6 +726,20 @@ const {
               </div>
             </n-form>
           </n-modal>
+
+          <ContactDetailDrawer
+            :show="showContactDetail"
+            :detail="contactDetail"
+            :loading="contactDetailLoading"
+            :money="money"
+            :dictionary-label="dictionaryLabel"
+            :direction-text="directionText"
+            :status-text="statusText"
+            :format-date="formatDate"
+            @close="closeContactDetail"
+            @edit="openEditContact"
+            @add-record="openCreateRecordForContact"
+          />
 
           <n-modal :show="showRecordModal" preset="card" :title="editingRecordId ? '编辑往来流水' : '新增往来流水'" class="form-modal" @update:show="(value: boolean) => { if (!value) closeRecordModal() }">
             <n-form label-placement="top">
