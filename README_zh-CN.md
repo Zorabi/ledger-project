@@ -1,191 +1,147 @@
 # 礼尚往来
 
-<p align="center">
-  面向家庭场景的自托管礼金、礼品、关系与回礼管理账本。
-</p>
+用于记录家庭礼金、礼品往来，管理往来对象、回礼状态和家庭备份的自托管账本。
 
-<p align="center">
-  <a href="README.md">English</a> · <a href="README_zh-CN.md">简体中文</a>
-</p>
+![版本](https://img.shields.io/badge/version-1.6.0.5-2f855a)
+[![许可证：AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-<p align="center">
-  <img alt="版本" src="https://img.shields.io/badge/version-1.6.0.4-2f855a">
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white">
-  <img alt="Vue" src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white">
-  <a href="LICENSE"><img alt="开源协议" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue"></a>
-</p>
+## 功能
 
-“礼尚往来”用于记录家庭收到和送出的礼金、礼品及背后的关系信息。系统将快速录入、往来对象、回礼跟踪、统计分析、Excel 备份恢复、家庭租户隔离和轻量审计整合在一个兼容 Web 与手机端的应用中。
+- **往来记录**：记录收礼、送礼、金额、礼品、事项、日期、经办人和备注，支持查询与编辑。
+- **对象管理**：维护往来对象、关系和分类，用户账号与往来对象独立管理。
+- **回礼管理**：手动维护回礼状态，可关联对应流水。
+- **统计分析**：查看收送合计、月度趋势、成员归属及待回礼等统计。
+- **家庭协作**：按家庭隔离数据，提供系统管理员、家庭管理员和成员三种固定角色。
+- **备份恢复**：导出家庭完整 Excel，支持定时邮件备份、可选加密 ZIP 和合并导入。
+- **操作追踪**：记录重要操作的审计日志，核心业务数据采用软删除或禁用。
 
-## 系统截图
+## 效果预览
 
-以下截图中的姓名和家庭标识均已脱敏。
+工作台将收送汇总、快速录入和最近流水放在同一页面，便于日常记账。截图使用脱敏示例数据，界面版本仅作展示。
 
-### 工作台与快速录入
+![工作台：收送汇总、快速录入和最近流水](docs/assets/screenshots/dashboard.png)
 
-![工作台与快速录入](docs/assets/screenshots/dashboard.png)
+<details>
+<summary>统计页面：月度趋势、成员归属与回礼状态</summary>
 
-### 收送统计概览
+![统计页面：月度收送趋势、归属成员统计与回礼状态](docs/assets/screenshots/analytics.png)
 
-![收送统计概览](docs/assets/screenshots/analytics.png)
+</details>
 
-## 核心能力
+## 安装与快速开始
 
-- **家庭租户隔离**：每个家庭拥有独立数据范围，业务查询从登录上下文获取 `family_id`，不信任前端传入的家庭 ID。
-- **固定三级角色**：`super_admin`、`family_admin`、`member`，菜单、路由和接口按角色控制权限。
-- **高效流水录入**：记录收礼或送礼、现金或礼品、事项、日期、经办人、备注和回礼状态。
-- **对象与关系管理**：往来对象独立于用户账号维护，并通过系统或家庭数据字典分类。
-- **回礼处理**：支持待回礼、已回礼、关联流水和无需回礼等状态，避免不透明的复杂自动匹配。
-- **固定统计分析**：提供收送合计、趋势、成员归属、关系、事项、待回礼和无需回礼等分析。
-- **可恢复备份**：导出家庭完整 Excel，支持定时邮件、可选加密 ZIP 和合并导入恢复。
-- **运维与安全基础**：Access/Refresh 会话、首次登录强制改密、登录限流、结构化日志、软删除和审计留存。
+项目使用 Go 后端、Vue 3 前端和 PostgreSQL。以下步骤适用于本地体验与开发；需要 Git、Go 1.24+、Node.js（建议使用与前端构建镜像一致的 22 版本）、npm，以及 Docker Compose v2。
 
-## 技术栈
+1. 获取源码并启动数据库：
 
-| 层级 | 技术 |
+   ```bash
+   git clone https://github.com/Zorabi/ledger-project.git
+   cd ledger-project
+   docker compose up -d postgres
+   docker compose ps
+   ```
+
+   等待 PostgreSQL 状态为 `healthy`。默认占用本机 `5432` 端口；如已有数据库，可直接在后端配置中填写连接信息。
+
+2. 检查 `backend/config.yaml`，确认数据库连接、管理员初始账号及密钥配置。仓库默认数据库为 `ledger`，用户为 `postgres`，密码为 `123456`；首次启动默认开启自动建库和迁移，仅适合本地体验。
+
+3. 在仓库根目录启动后端：
+
+   ```bash
+   cd backend
+   go mod download
+   go run ./cmd/api
+   ```
+
+4. 新开终端，从仓库根目录安装依赖并启动前端：
+
+   ```bash
+   cd frontend
+   npm ci
+   npm run dev
+   ```
+
+5. 打开 <http://localhost:5173>。新数据库默认初始化系统管理员 `admin`，初始密码为 `ChangeMe123!`；首次登录按提示修改密码。
+
+| 服务 | 本地地址 |
 | --- | --- |
-| 后端 | Go、Gin、GORM、Swagger |
-| 前端 | Vue 3、Vite、Naive UI、ECharts |
-| 数据库 | PostgreSQL |
-| 数据便携 | Excel 导入导出、可选加密 ZIP |
-| 部署 | Docker Compose，或独立部署前后端进程 |
-
-```text
-浏览器
-  └─ Vue 3 单页应用
-       └─ REST API（Go + Gin）
-            ├─ PostgreSQL
-            ├─ 进程内备份、会话与审计清理调度
-            └─ 用于定时备份和导入前备份的 SMTP 服务
-```
-
-## 使用 Docker 快速启动
-
-### 环境要求
-
-- Docker 24 或更高版本
-- Docker Compose v2
-
-```bash
-git clone https://github.com/Zorabi/ledger-project.git
-cd ledger-project
-docker compose up -d --build
-```
-
-容器健康后可访问：
-
-| 服务 | 地址 |
-| --- | --- |
-| Web 应用 | <http://localhost> |
+| Web 界面 | <http://localhost:5173> |
 | 后端 API | <http://localhost:8080> |
-| Swagger UI | <http://localhost:8080/swagger/index.html> |
-| PostgreSQL | `127.0.0.1:5432/ledger` |
+| Swagger 接口文档 | <http://localhost:8080/swagger/index.html> |
 
-开发环境初始化账号为 `admin` / `ChangeMe123!`，首次登录后请立即修改密码。Docker 与 YAML 中的默认凭据仅用于本地体验，禁止直接用于生产环境。
+Vite 已将 `/api` 请求代理到本地后端。仓库也提供完整的 Compose 服务定义，但前端容器使用默认 Nginx 配置；用于完整应用部署前，还需为 `/api` 配置指向后端的反向代理。
 
-常用命令：
+停止体验用数据库时，在仓库根目录运行 `docker compose stop postgres`，数据保存在 Docker 卷中。
 
-```bash
-docker compose ps
-docker compose logs -f
-docker compose down
-```
+## 使用说明
 
-## 本地开发
+1. 系统管理员创建家庭及家庭管理员；普通用户不能自行创建家庭。
+2. 家庭管理员维护本家庭成员、自定义字典和备份配置。
+3. 先添加往来对象，再通过工作台或往来流水页面录入收礼、送礼记录。记录保存后直接生效。
+4. 按实际往来情况手动更新回礼状态，需要时关联另一条流水；在统计页面查看家庭收送情况。
+5. 在备份配置中设置收件人和频率，或导出家庭 Excel。恢复时使用同格式文件合并导入，不会先清空现有数据。
 
-### 环境要求
+正式导入前，系统必须通过邮件发送当前家庭备份；SMTP 未配置或发送失败时会中止导入。导出文件和邮件附件含家庭业务数据，请妥善保存。
 
-- Go 1.24+
-- Node.js 20+ 和 npm
-- PostgreSQL 16+，也可以使用 Docker 启动数据库
+## 配置与部署
 
-先启动 PostgreSQL，再分别启动后端和前端：
+后端读取 `backend/config.yaml`，支持同名环境变量覆盖（例如 `JWT_SECRET`）。[环境变量示例](.env.example)可作为字段参考；后端不会自动加载 `.env` 文件，本地运行时需由启动环境显式传入。
 
-```bash
-docker compose up -d postgres
-make dev-backend
-make dev-frontend
-```
+| 配置 | 用途 |
+| --- | --- |
+| `DATABASE_POSTGRES_*` | 数据库连接、自动建库与迁移开关 |
+| `JWT_SECRET` | 登录令牌签名密钥 |
+| `APP_ENCRYPTION_KEY` | 加密保存备份 ZIP 密码的主密钥 |
+| `EMAIL_*` | 备份邮件 SMTP 配置 |
+| `AUDIT_RETENTION_DAYS` | 审计留存天数，支持 `30`、`60`、`90` |
+| `LOG_*` | 日志输出和轮转配置 |
 
-Vite 开发地址为 <http://localhost:5173>。
+部署前替换示例账号密码和密钥，配置 HTTPS，并持久化数据库。使用独立数据库迁移流程时关闭自动建库和自动迁移。数据库维护步骤见 [数据库部署与迁移说明](sql/README.md)；配置和组件关系见 [架构文档](docs/architecture.md)。
 
-运行项目验证：
+## 兼容性
+
+| 项目 | 当前范围 |
+| --- | --- |
+| 客户端 | 浏览器访问，响应式布局适配桌面与手机，界面为中文 |
+| 数据库 | PostgreSQL；仓库 Compose 使用 PostgreSQL 16 |
+| 金额 | 人民币，数据库以整数分存储 |
+| 登录 | 账号密码，支持首次登录强制修改密码 |
+| 附件 | 仅预留模型和扩展点，尚未开放上传 |
+
+## 开发与测试
+
+后端代码位于 `backend/`，前端代码位于 `frontend/`。安装前端依赖后，在仓库根目录运行：
 
 ```bash
 make test
 ```
 
-构建当前平台发布产物：
+该命令依次运行 Go 测试和前端生产构建；前端构建不等同于端到端测试。也可分别执行：
+
+```bash
+(cd backend && go test ./...)
+(cd frontend && npm run build)
+```
+
+构建当前平台后端二进制及前端静态资源压缩包：
 
 ```bash
 make build
 ```
 
-运行 `make help` 可查看跨平台后端构建、前端打包、SQL 迁移、数据库备份和恢复等命令。
+产物分别写入 `dist/backend/<系统>-<架构>/` 和 `dist/frontend/ledger-web.zip`。其他构建命令见 `make help`。
 
-## 配置说明
+## 贡献与文档
 
-后端默认读取 `backend/config.yaml`，并支持环境变量覆盖。请以 `.env.example` 为配置参考，不要提交已经填写生产凭据的配置文件。
+提交 Issue 或 Pull Request 前请阅读 [贡献指南](CONTRIBUTING.md)。修改时请关注家庭数据隔离、权限、审计和移动端体验；不要在问题报告中附带真实家庭数据或凭据。安全问题请按 [安全策略](SECURITY.md)报告。
 
-| 环境变量 | 用途 |
-| --- | --- |
-| `DATABASE_POSTGRES_*` | PostgreSQL 连接以及自动建库、迁移开关 |
-| `JWT_SECRET` | Token 签名密钥，生产环境必须使用足够长的随机值 |
-| `APP_ENCRYPTION_KEY` | 加密保存备份 ZIP 密码的服务端主密钥 |
-| `APP_VERSION` | 系统展示版本号 |
-| `EMAIL_*` | 发送备份邮件所使用的 SMTP 配置 |
-| `AUDIT_RETENTION_DAYS` | 审计日志留存天数：`30`、`60` 或 `90` |
-| `LOG_*` | 结构化控制台/文件日志及轮转配置 |
-
-生产部署必须替换所有示例密码和密钥；手动管理数据库版本时应关闭自动建库与自动迁移；按部署环境启用 TLS；迁移服务器时必须保留 `APP_ENCRYPTION_KEY`。
-
-## 备份与恢复安全规则
-
-- 备份文件是单个家庭的完整 Excel 工作簿。
-- 定时备份可通过邮件发送，并可选用加密 ZIP 附件。
-- 恢复采用合并导入，不会先清空家庭数据。
-- 正式导入前必须邮件发送当前家庭备份；邮件发送失败时中止导入。
-- 导入文件和邮件附件可能包含个人与财务敏感信息，应按敏感数据要求存储和传输。
-
-## 生产部署与数据库迁移
-
-- 生产环境推荐共享 PostgreSQL 实例，但为本系统分配独立 database。
-- 建议关闭 `DATABASE_POSTGRES_AUTO_CREATE` 和 `DATABASE_POSTGRES_AUTO_MIGRATE`，按 `sql/<version>/` 目录从小到大执行迁移。
-- 每个版本目录先执行 `001_ddl.sql`，再执行 `002_data.sql`。
-- 生产数据库无需暴露给开发机，可在应用服务器、堡垒机、CI/CD 内网任务、DBA 工作台或 SSH 隧道环境中使用 `psql`。
-- 升级前使用 `pg_dump` 备份；迁移服务器时使用 `pg_restore` 恢复数据库，并同步密钥和运行配置。
-
-示例：
-
-```bash
-pg_dump --format=custom --file=backups/ledger.dump \
-  'postgres://ledger_app:change_me@db-host:5432/ledger?sslmode=require'
-
-psql 'postgres://ledger_app:change_me@db-host:5432/ledger?sslmode=require' \
-  -v ON_ERROR_STOP=1 -f sql/<version>/001_ddl.sql
-psql 'postgres://ledger_app:change_me@db-host:5432/ledger?sslmode=require' \
-  -v ON_ERROR_STOP=1 -f sql/<version>/002_data.sql
-```
-
-完整迁移约束请参阅 [SQL 版本目录说明](sql/README.md) 和 [架构文档](docs/architecture.md)。
-
-## 项目文档
-
-- [English README](README.md)
 - [产品需求](docs/product-requirements.md)
 - [架构设计](docs/architecture.md)
-- [数据库迁移说明](sql/README.md)
+- [数据库部署与迁移](sql/README.md)
 - [更新日志](CHANGELOG.md)
-- [贡献指南](CONTRIBUTING.md)
-- [安全策略](SECURITY.md)
 
-## 参与贡献
+## 许可证
 
-欢迎提交 Issue 和 Pull Request。提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。修改业务功能时，请同时检查家庭租户隔离、认证鉴权、审计日志、接口兼容性以及 Web/手机端响应式体验。
+Copyright (c) 2026 dongx。
 
-## 开源协议
-
-Copyright (c) 2026 dongx.
-
-本项目基于 [GNU Affero General Public License v3.0](LICENSE) 发布（`AGPL-3.0-only`）。
+本项目基于 [GNU Affero General Public License v3.0](LICENSE) 发布。SPDX 标识：`AGPL-3.0-only`。
