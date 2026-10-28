@@ -1,6 +1,8 @@
 {
   "name": "ledger-frontend",
   "private": true,
+  "author": "dongx",
+  "license": "AGPL-3.0-only",
   "version": "1.6.0",
   "type": "module",
   "scripts": {

@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <img alt="版本" src="https://img.shields.io/badge/version-1.6.0.3-2f855a">
+  <img alt="版本" src="https://img.shields.io/badge/version-1.6.0.4-2f855a">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white">
   <img alt="Vue" src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white">
-  <a href="LICENSE"><img alt="开源协议" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a>
+  <a href="LICENSE"><img alt="开源协议" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue"></a>
 </p>
 
 “礼尚往来”用于记录家庭收到和送出的礼金、礼品及背后的关系信息。系统将快速录入、往来对象、回礼跟踪、统计分析、Excel 备份恢复、家庭租户隔离和轻量审计整合在一个兼容 Web 与手机端的应用中。
@@ -186,6 +186,6 @@ psql 'postgres://ledger_app:change_me@db-host:5432/ledger?sslmode=require' \
 
 ## 开源协议
 
-Copyright © 2026 礼尚往来项目贡献者。
+Copyright (c) 2026 dongx.
 
-本项目采用 [GNU Affero General Public License v3.0](LICENSE) 开源。若您修改本软件并通过网络向用户提供服务，AGPL 要求向这些用户提供相应源代码。完整条款以 `LICENSE` 文件为准。
+本项目基于 [GNU Affero General Public License v3.0](LICENSE) 发布（`AGPL-3.0-only`）。

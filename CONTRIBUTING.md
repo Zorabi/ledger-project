@@ -44,4 +44,4 @@ Examples include `✨ feat(stats): 增加统计维度` and `🐛 fix(auth): 修�
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the repository's [AGPL-3.0 license](LICENSE).
+By contributing, you agree that your contributions are licensed under the repository's [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).

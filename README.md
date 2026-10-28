@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.6.0.3-2f855a">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.6.0.4-2f855a">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white">
   <img alt="Vue" src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white">
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue"></a>
 </p>
 
 Gift Ledger helps a household keep a reliable record of gifts received and given. It combines fast entry, contact and relationship management, reciprocity tracking, analytics, Excel backup and restore, tenant isolation, and lightweight auditing in one responsive web application.
@@ -166,6 +166,6 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
 
 ## License
 
-Copyright © 2026 Gift Ledger contributors.
+Copyright (c) 2026 dongx.
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE). If you modify the software and make it available to users over a network, the AGPL requires that those users be offered the corresponding source code. See the license text for the complete terms.
+This project is released under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
